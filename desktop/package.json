@@ -1,0 +1,52 @@
+{
+  "name": "vidyutsewa-desktop",
+  "productName": "VidyutSewa By Yuvraj",
+  "version": "1.0.0",
+  "description": "VidyutSewa By Yuvraj - Electricity Name Change & Tracker (independent helper for MSEDCL consumers)",
+  "author": "Yuvraj Chauhan",
+  "license": "MIT",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "copyweb": "node copy-web.js",
+    "dist": "node copy-web.js && electron-builder --win portable --x64"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "com.filmyfather.vidyutsewa",
+    "productName": "VidyutSewa By Yuvraj",
+    "copyright": "Yuvraj Chauhan",
+    "files": [
+      "main.js",
+      "preload.js",
+      "preload-official.js",
+      "web/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "VidyutSewa-By-Yuvraj-${version}-Windows-Portable.exe"
+    },
+    "portable": {
+      "artifactName": "VidyutSewa-By-Yuvraj-${version}-Windows-Portable.exe"
+    },
+    "asar": true,
+    "compression": "maximum"
+  }
+}

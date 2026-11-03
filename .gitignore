@@ -1,0 +1,11 @@
+node_modules/
+dist/
+build/
+.gradle/
+local.properties
+keystore.properties
+*.jks
+*.keystore
+desktop/web/
+*.apk
+*.exe

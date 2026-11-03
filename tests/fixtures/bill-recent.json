@@ -1,0 +1,36 @@
+{
+ "responseStatus": "SUCCESS",
+ "consumerExistYN": "Y",
+ "timestamp": "2026-11-04 03:00:00",
+ "applicableAmountId": "1",
+ "advancePayments": {},
+ "sdPayments": {},
+ "bill": {
+  "consumerNumber": "001122334455",
+  "consumerName": "RAMESH SHANKAR PATIL",
+  "billingUnit": "4708",
+  "billingUnitName": "VASAI RD (E)",
+  "pc": "0",
+  "isLiveYN": "Y",
+  "consumerStatus": "LIVE",
+  "showBillYN": "Y",
+  "enablePaymentYN": "Y",
+  "consumption": "175",
+  "billMonthYYMM": "2610",
+  "billNumber": "000000000000",
+  "billDate": "13-Oct-26",
+  "billAmount": "1910",
+  "cutoffDate": "",
+  "dueDate": "02-Nov-26",
+  "afterDueDateAmount": "1930",
+  "promptPayDate": "22-Oct-26",
+  "promptPayAmount": "1890",
+  "meterStatus": "NORMAL",
+  "billPeriod": "1",
+  "msg": "",
+  "billDocument": {
+   "webUrl": "https://billpdf.mahadiscom.in/BD?k=0123456789abcdef0",
+   "loadTarget": "LOAD_TARGET_PDF_VIEWER"
+  }
+ }
+}

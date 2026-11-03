@@ -1,0 +1,597 @@
+<script>alert('Dear consumer, your application for Change of Name has been successfully registered. Please note your Application ID: 12345678. You will now be redirected to upload relevant documents. Kindly upload the documents within 3 days, otherwise the application will be auto-cancelled by the system.');</script>
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head><title>
+	Name change Document Upload application
+</title><script type="text/javascript" src="/ruxitagentjs_ICA7NQVfhqrux_10347260902154543.js" data-dtconfig="rid=RID_-1129636648|rpid=-321634376|domain=mahadiscom.in|reportUrl=/rb_bf47874yok|app=7ec3fb3102b01311|srtbv=4|owasp=1|featureHash=ICA7NQVfhqrux|msl=153600|srsr=5000|rdnt=1|uxrgce=1|cuc=i9ki9ku7|srms=2,1,0,0%2Ftextarea%2Cinput%2Cselect%2Coption;0%2Fdatalist;0%2Fform%20button;0%2F%5Bdata-dtrum-input%5D;0%2F.data-dtrum-input;0%2F%5Bcontenteditable%5D%3Anot%28%5Bcontenteditable%3D%22false%22%5D%29;0%2F%5Brole%3D%22textbox%22%5D%2C%5Brole%3D%22checkbox%22%5D%2C%5Brole%3D%22radio%22%5D%2C%5Brole%3D%22option%22%5D%2C%5Brole%3D%22combobox%22%5D%2C%5Brole%3D%22slider%22%5D%2C%5Brole%3D%22searchbox%22%5D%2C%5Brole%3D%22switch%22%5D%2C%5Brole%3D%22spinbutton%22%5D;1%2F%5Edata%28%28%5C-.%2B%24%29%7C%24%29|mel=100000|expw=1|dpvc=1|md=mdcc1=a#username|lastModification=1793251137341|postfix=i9ki9ku7|tp=500,50,0|srbbv=3|agentUri=/ruxitagentjs_ICA7NQVfhqrux_10347260902154543.js"></script><link href="../../Styles/styletemplate.css?v=6" rel="stylesheet" type="text/css" />
+    <script type="text/javascript" src="js/Loader_jquery.min.js"></script>
+    <script type="text/javascript">
+        function ShowProgress() {
+            setTimeout(function () {
+                var modal = $('<div />');
+                modal.addClass("modal");
+                $('body').append(modal);
+                var loading = $(".loading");
+                loading.show();
+                var top = Math.max($(window).height() / 2 - loading[0].offsetHeight / 2, 0);
+                var left = Math.max($(window).width() / 2 - loading[0].offsetWidth / 2, 0);
+                loading.css({ top: top, left: left });
+            }, 200);
+        }
+
+         function PrintProvisionalCertificate(AppNo) {
+        window.open(
+            'ProvisionalNameChangeCertificate.aspx?AppNo=' + AppNo,
+            'PrintProvisionalCertificate',
+            'scrollbars=yes,menubar=no,height=750,width=950,resizable=yes,toolbar=no,location=no,status=no'
+        );
+        return false;
+    }
+</script>
+
+  
+    <script type="text/javascript">
+
+
+        //22-07-2026
+       function DisableUpload(btn) {
+
+        // Run validation first
+        if (typeof (Page_ClientValidate) == "function") {
+            if (!Page_ClientValidate("NC"))
+                return false;
+        }
+
+        // Prevent double click
+        if (btn.getAttribute("data-clicked") == "true") {
+            return false;
+        }
+
+        btn.setAttribute("data-clicked", "true");
+        btn.value = "Uploading...";
+        btn.disabled = true;
+
+        // Start ASP.NET postback manually
+        __doPostBack(btn.name, "");
+
+        return false;
+    }
+
+
+//        var fileArray = [];
+        function checkUploadFile(elem) 
+        {
+            if (checkFileExtension(elem)) {
+                ValidateFileName(elem);
+            }
+        }
+        function checkFileExtension(elem) 
+        {
+            var filePath = elem.value;
+//            console.log("filepath = ", filePath);
+//            fileArray.push(filePath);
+//            if (fileArray.length > 2) {
+//                fileArray.splice(0, 1);
+//            }
+//            localStorage.setItem("file1", filePath);
+//            console.log("fileArray = ", fileArray);
+            if (filePath.indexOf('.') == -1)
+                return false;
+
+            var validExtensions = new Array();
+            var ext = filePath.substring(filePath.lastIndexOf('.') + 1).toLowerCase();
+            //Add valid extentions in this array
+            validExtensions[0] = 'JPEG';
+            validExtensions[1] = 'JPG';
+            validExtensions[2] = 'PNG';
+            validExtensions[3] = 'jpeg';
+            validExtensions[4] = 'jpg';
+            validExtensions[5] = 'png';
+            validExtensions[6] = 'PDF';
+            validExtensions[7] = 'pdf';
+            for (var i = 0; i < validExtensions.length; i++) {
+                if (ext == validExtensions[i])
+                    return true;
+            }
+            alert('The file extension ' + ext.toUpperCase() + ' is not allowed!');
+            elem.value = '';
+            return false;
+        }
+        //function ValidateFileName(elem) 
+        //{
+
+
+        //    var myfile = elem.value;
+        //    if (myfile.search(/[<>'\s+\"\/;`%]/) > 0) {
+        //        alert('please upload the file without special characters and SPACES');
+        //        elem.value = '';
+        //        return false;
+        //    }
+        //    else {
+        //        //alert('valid Format');
+        //        return true;
+        //    }
+
+        //}
+        function ValidateFileName(elem) {
+            var myfile = elem.value;
+
+            if (myfile.search(/[<>'\s+\"\/;`%&]/) >= 0) {
+                alert('Please upload the file without special characters and SPACES');
+                elem.value = '';
+                return false;
+            }
+            else {
+                return true;
+            }
+        }
+
+
+
+
+
+        function getfullName() 
+        {
+
+            var ConsumerFirstName = document.getElementById('txtFname').value.replace(/^\s*|\s*$/g, '');
+            var ConsumerMiddleName = document.getElementById('txtMname').value.replace(/^\s*|\s*$/g, '');
+            var ConsumerLastName = document.getElementById('txtLname').value.replace(/^\s*|\s*$/g, '');
+            document.getElementById('txtFullName').value = ConsumerFirstName + ' ' + ConsumerMiddleName + ' ' + ConsumerLastName;
+        }
+
+        function CheckNameUpdate() 
+        {
+//            alert("IN");
+        var ConsumerFirstName = document.getElementById('txtFname').value.replace(/^\s*|\s*$/g, '');
+        var ConsumerMiddleName = document.getElementById('txtMname').value.replace(/^\s*|\s*$/g, '');
+        var ConsumerLastName = document.getElementById('txtLname').value.replace(/^\s*|\s*$/g, '');
+        var ConsumerFullName = document.getElementById('txtFullName').value.replace(/^\s*|\s*$/g, '');
+
+//          ValidateConsumerName(elem);
+
+        if ((ConsumerFirstName && ConsumerFirstName.length == 0) || ConsumerFirstName == '') 
+        {
+            alert('Please enter First Name');
+            return false;
+        }
+
+////        if (isEmpty(ConsumerMiddleName)) 
+//        {
+//            alert('Please enter Middle Name');
+//            return false;
+//        }
+
+        if ((ConsumerLastName && ConsumerLastName.length == 0) || ConsumerLastName == '')
+        {
+            alert('Please enter Last Name');
+            return false;
+        }
+
+        if (ConsumerFullName && ConsumerFullName.length > 50)
+         {
+            alert('First Name,Middle Name,Last Name should be upto 50 characters.');
+            return false;
+        }
+
+        return true;
+    }
+
+//    function ValidateConsumerName(elem) {
+//    alert("in")
+//        var myfile = elem.value;
+//        if (myfile.search(/[<>'\s+\"\/;`%]/) > 0) 
+//        {
+//            alert('Special Characters Are Not Allowed In Name');
+//            elem.value = '';
+//            return false;
+//        }
+//        else
+//         {
+//            //alert('valid Format');
+//            return true;
+//        }
+
+//    }
+    function Confirm() {
+        //            alert("hi");
+        var r = confirm("Do you want to upload documents ? please check documents you are selected correct/not.");
+        if (r == true) {
+            //            txt = "You pressed OK!";
+            alert("Documents are uploading..!!!");
+        }
+        else {
+            alert("Please upload documents for further Process.");
+            return;
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        var dropdownToggle = document.querySelectorAll('.dropdown-toggle');
+        dropdownToggle.forEach(function (el) {
+            el.addEventListener('click', function (e) {
+                e.preventDefault();
+                var dropdown = this.parentElement;
+                dropdown.classList.toggle('active');
+            });
+        });
+        });
+
+
+         function OpenDocument(appId, docId) {
+
+            var url = "/DocumentViewer.ashx?appId=" +
+                encodeURIComponent(appId) +
+                "&docId=" +
+                encodeURIComponent(docId);
+
+            window.open(
+                url,
+                "DocumentViewer",
+                "width=700,height=500,top=50,left=100,scrollbars=yes,resizable=yes"
+            );
+
+            return false;
+        }
+    </script>
+ <style>
+.social_media_links a {
+    font-size: 24px;
+	margin: 0 2px;
+}
+
+.rejectReasonLabel {
+    color: #b30000;
+    font-weight: bold;
+}
+
+</style>
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" /></head>
+<body>
+
+ <div id="wrap">
+        <div id="masthead">
+            <h1>
+                Maharashtra State Electricity Distribution Co. Ltd.</h1>
+        </div>
+
+    <form method="post" action="./ChangeNameUploadDoc.aspx?applicationno=12345678" id="form1">
+<div class="aspNetHidden">
+<input type="hidden" name="__EVENTTARGET" id="__EVENTTARGET" value="" />
+<input type="hidden" name="__EVENTARGUMENT" id="__EVENTARGUMENT" value="" />
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="REDACTED___VIEWSTATE" />
+</div>
+
+<script type="text/javascript">
+//<![CDATA[
+var theForm = document.forms['form1'];
+if (!theForm) {
+    theForm = document.form1;
+}
+function __doPostBack(eventTarget, eventArgument) {
+    if (!theForm.onsubmit || (theForm.onsubmit() != false)) {
+        theForm.__EVENTTARGET.value = eventTarget;
+        theForm.__EVENTARGUMENT.value = eventArgument;
+        theForm.submit();
+    }
+}
+//]]>
+</script>
+
+
+<script src="/WebResource.axd?d=Vqc1KaH3cMw0pMQVg9yVRg4_khC7D5-iGSI5RcnQ6XdI-AynecfCtl2ipT6GZuARJtXk7kNzgxNvzf4cN_AXVrRhK_WMHzhpLz2PppNwDQM1&amp;t=636765661264470882" type="text/javascript"></script>
+
+
+<script src="/ScriptResource.axd?d=IQJaMMYPqZE99KuxD_kTVHvaW0DdYLy2blen5dPKynSCyAb9grNr8a0zCPGTvnxhUqkig9UYO90tj6aZ51vUhIY-zqVps0VYmd1KZMp9itmI0ff3aQLQ4UaPETcYW1v8_1ISFJJ7on4fkqqWYb3KdZfwNJfssyGVcqFiPhpkmDdSIjklUN47ZZWNbCpUmHlX0&amp;t=ffffffff999c3159" type="text/javascript"></script>
+<script type="text/javascript">
+//<![CDATA[
+if (typeof(Sys) === 'undefined') throw new Error('ASP.NET Ajax client-side framework failed to load.');
+//]]>
+</script>
+
+<script src="/ScriptResource.axd?d=1LLSn8waoQpBs_jVbfREyJyD6pLV9mLKDQzY5i59-XxF1qVHiazVNCkwUJyQrK0f1ePqy45RnqYP2QZ3WEk3qkTPpujbL9G90zCiPkG8sFUGocNMQyhp4gsfU6Xl1bzacA5q52FUfyk9z2KyBjb9GVldNpsSq24TIqgTLovmr9YAW4dLpcLmQDhVD4itSarS0&amp;t=ffffffff999c3159" type="text/javascript"></script>
+<div class="aspNetHidden">
+
+	<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="REDACTED___VIEWSTATEGENERATOR" />
+	<input type="hidden" name="__VIEWSTATEENCRYPTED" id="__VIEWSTATEENCRYPTED" value="" />
+	<input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="REDACTED___EVENTVALIDATION" />
+</div>
+    <div id="menucontainer">
+            <div id="menunav">
+                <ul>
+                    <li><a href="../PAYNC/SearchApplication.aspx"><span>New Connection</span></a></li>
+                 <li><a href="../ROOFTOP/Solar_RTS.aspx""><span>Solar RoofTop</span></a></li>
+                    <li><a href="ChangeNameUploadDoc.aspx" class="current"><span>Change of Name</span></a></li>
+                    
+                    <li><a href="../LOADCHANGE/LoadChange.aspx"><span>Load Change</span></a></li>
+                    <li><a href="../PAYDUES/PayDues.aspx"><span>Re-connection</span></a></li>
+                    <li><a href="../AC/AddressCorrection.aspx"><span>Address Correction</span></a></li>
+
+                   
+                    <li class="dropdown">
+            <a href="#" class="dropdown-toggle"><span>Other Refunds</span></a>
+            <ul class="dropdown-menu">
+                <li><a href="../SdRefund/SdRefund.aspx"><span>SD Refund</span></a></li>
+                <li><a href="../InfraCharge/InfraCharge.aspx"><span>Infra Charge</span></a></li>
+              <li><a href="../ServiceCharge/ServiceCharge.aspx"><span>Service Charge</span></a></li>
+                <!-- Add more options as needed -->
+            </ul>
+        </li>
+                   <li><a href="../InstallmentPolicy/Installment_Policy.aspx"><span>Installment Plan</span></a></li>
+                       <li><a href="../TariffChange/TariffChange.aspx" ><span>Activity Declaration</span></a></li>
+                      <li><a href="../PDAmnesty/PDAmnesty.aspx" ><span>PD Amnesty</span></a></li>
+                </ul>
+            </div>
+        </div>
+
+ 
+        
+          <script type="text/javascript">
+//<![CDATA[
+Sys.WebForms.PageRequestManager._initialize('ToolkitScriptManager1', 'form1', [], [], [], 90, '');
+//]]>
+</script>
+
+
+
+
+        <div id="container">
+           <div id="content">
+                <h3>
+                    CHECK NAME CHANGE APPLICATION STATUS , PAY FIRM QUOTATION / DEMAND NOTE AND UPLOAD DOCUMENTS.
+                   </h3>
+                <br />
+                   
+                <br />
+       
+         <div id="pnlConsInfo" class="panelHeading" style="width: 85%; margin: 0px auto; padding: 10px 10px 10px 10px;">
+	
+        <div class="contact-box-Big">
+        <table width="100%" frame="box">
+            <tr>
+                <td class="tableheadingtd">
+                    Consumer Information
+                </td>
+            </tr>
+            <tr>
+                <td align="left">
+                    <div>
+		<table cellspacing="0" rules="all" id="DVConsumerInfo" style="border-color:#003300;border-width:1px;border-style:Solid;height:50px;width:100%;border-collapse:collapse;">
+			<tr style="color:Black;background-color:White;font-family:Arial;font-size:10pt;font-style:italic;">
+				<td style="font-size:Small;font-weight:bold;">Application ID</td><td>
+                                    12345678
+                                </td>
+			</tr><tr style="color:Black;background-color:#FEFAFA;font-family:Arial;font-size:10pt;font-style:italic;">
+				<td style="font-weight:bold;">Application Date</td><td>
+                                
+                                    31-Oct-26
+                                </td>
+			</tr><tr style="color:Black;background-color:White;font-family:Arial;font-size:10pt;font-style:italic;">
+				<td style="font-weight:bold;">Consumer No</td><td>
+                                    001122334455
+                                </td>
+			</tr><tr style="color:Black;background-color:#FEFAFA;font-family:Arial;font-size:10pt;font-style:italic;">
+				<td style="font-weight:bold;">Old Consumer Name</td><td>
+                                    PATIL RAMESH SHANKAR
+                                </td>
+			</tr><tr style="color:Black;background-color:White;font-family:Arial;font-size:10pt;font-style:italic;">
+				<td style="font-weight:bold;">New Consumer Name</td><td>
+                                    DESHMUKH SUNIL ANANT
+                                </td>
+			</tr><tr style="color:Black;background-color:#FEFAFA;font-family:Arial;font-size:10pt;font-style:italic;">
+				<td style="font-weight:bold;">Mobile No</td><td>
+                                    9800000000
+                                </td>
+			</tr><tr style="color:Black;background-color:White;font-family:Arial;font-size:10pt;font-style:italic;">
+				<td style="font-weight:bold;">Category</td><td>
+                                    LT-SUPPLY
+                                </td>
+			</tr><tr style="color:Black;background-color:#FEFAFA;font-family:Arial;font-size:10pt;font-style:italic;">
+				<td style="font-weight:bold;">Service Type</td><td>
+                                    Change in Name
+                                </td>
+			</tr><tr style="color:Black;background-color:White;font-family:Arial;font-size:10pt;font-style:italic;">
+				<td style="font-weight:bold;">Tariff Type</td><td>
+                                    Residential
+                                </td>
+			</tr><tr style="color:Black;background-color:#FEFAFA;font-family:Arial;font-size:10pt;font-style:italic;">
+				<td style="font-weight:bold;">Application Reason</td><td>
+                                    Change in Ownership
+                                </td>
+			</tr><tr style="color:Black;background-color:White;font-family:Arial;font-size:10pt;font-style:italic;">
+				<td style="font-weight:bold;">Region Name/Zone Name</td><td>
+                                    KOKAN REGION / KALYAN ZONE
+                                </td>
+			</tr><tr style="color:Black;background-color:#FEFAFA;font-family:Arial;font-size:10pt;font-style:italic;">
+				<td style="font-weight:bold;">Circle Name/Division Name</td><td>
+                                    VASAI CIRCLE / VASAI DIVISION
+                                </td>
+			</tr><tr style="color:Black;background-color:White;font-family:Arial;font-size:10pt;font-style:italic;">
+				<td style="font-weight:bold;">BU/Sub Division Name</td><td>
+                                  4359-VASAI RD. EAST S/DN.
+                                </td>
+			</tr><tr style="color:Black;background-color:#FEFAFA;font-family:Arial;font-size:10pt;font-style:italic;">
+				<td style="font-weight:bold;">No of Documents Online Uploaded. </td><td>
+                                    2
+                                </td>
+			</tr><tr style="color:Black;background-color:White;font-family:Arial;font-size:10pt;font-style:italic;">
+				<td style="font-weight:bold;">Application Status</td><td class="application-status-cell">
+        <span id="DVConsumerInfo_lblApplicationStatus" class="application-status-text">Application Submitted</span>
+    </td>
+			</tr>
+		</table>
+	</div>
+                </td>
+            </tr>
+            
+            
+
+        </table>
+        </div>
+         
+</div>
+
+            
+
+               
+
+               
+             
+         
+         
+                     
+                    
+
+                
+
+               
+
+               
+
+              
+
+
+         
+        
+
+        
+
+
+               
+
+
+
+
+        <div id="pnlEstDet" class="panelHeading" style="height:451px;margin: 0px auto; padding: 10px 10px 10px 10px;">
+	
+                         <div class="contact-box-Big">
+                        <table width="100%" frame="box" cellspacing="20">
+                            <tr>
+                                <td class="tableheadingtd" colspan="2">
+                                    
+                                    <span id="lblEstHeading">Firm Quotation / Demand Note</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="vertical-align: top" align="left" width="50%">
+                                    <div>
+		<table cellspacing="4" cellpadding="2" rules="all" border="1" id="GrvPertDet">
+			<tr>
+				<th scope="col" style="color:Black;background-color:LightBlue;border-color:Black;border-width:1px;border-style:Solid;font-size:10pt;">Estimate No</th><th scope="col" style="color:Black;background-color:LightBlue;border-color:Black;border-width:1px;border-style:Solid;font-size:10pt;">Estimate Date</th><th scope="col" style="color:Black;background-color:LightBlue;border-color:Black;border-width:1px;border-style:Solid;font-size:10pt;">Type</th>
+			</tr><tr>
+				<td align="center" valign="middle" style="border-color:Black;border-width:1px;border-style:Solid;">
+                                                    40000001
+                                                </td><td align="center" valign="middle" style="border-color:Black;border-width:1px;border-style:Solid;">
+                                                    31-ऑक्टो.-26
+                                                </td><td align="center" valign="middle" style="border-color:Black;border-width:1px;border-style:Solid;">
+                                                    LT
+                                                </td>
+			</tr>
+		</table>
+	</div>
+                                </td>
+                                <td width="75%">
+                                    <div>
+		<table cellspacing="4" cellpadding="2" rules="all" border="1" id="GrvEstDet">
+			<tr>
+				<th scope="col" style="color:Black;background-color:LightBlue;border-color:Black;border-width:1px;border-style:Solid;font-size:10pt;">Description</th><th scope="col" style="color:Black;background-color:LightBlue;border-color:Black;border-width:1px;border-style:Solid;font-size:10pt;">Amount (Rs.)</th>
+			</tr><tr>
+				<td align="left" valign="middle" style="border-color:Black;border-width:1px;border-style:Solid;">
+                                                    PROCESSING FEE
+                                                </td><td align="right" valign="middle" style="border-color:Black;border-width:1px;border-style:Solid;">
+                                                    130
+                                                </td>
+			</tr><tr>
+				<td>&nbsp;</td><td align="right" valign="middle" style="border-color:Black;border-width:1px;border-style:Solid;">
+                                                    <span id="GrvEstDet_lblTotal">Total : 130</span>
+                                                </td>
+			</tr>
+		</table>
+	</div>
+                                </td>
+                            </tr>
+                               <tr>
+                                <td colspan="2" align="center">
+                                  <span id="lblPaybleAmt" style="color:Black;font-weight:bold"></span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td colspan="2" align="center">
+                                    
+                                </td>
+                            </tr>
+                        </table>
+                        </div>
+                    
+</div>
+        
+        
+
+                    <div id="pnlRecDetail" class="panelHeading" style="width: 90%; margin: 0px auto; padding: 10px 10px 10px 10px;">
+	
+                             <div class="contact-box-Big">
+                        <table width="100%" frame="box">
+                            <tr>
+                                <td class="tableheadingtd">
+                                    Receipt Details
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div>
+		<table cellspacing="4" cellpadding="2" rules="all" align="center" border="1" id="GrvRecDet" style="width:90%;">
+			<tr>
+				<th scope="col" style="color:Black;background-color:LightBlue;border-color:Black;border-width:1px;border-style:Solid;font-size:10pt;">Description</th><th scope="col" style="color:Black;background-color:LightBlue;border-color:Black;border-width:1px;border-style:Solid;font-size:10pt;">Number</th><th scope="col" style="color:Black;background-color:LightBlue;border-color:Black;border-width:1px;border-style:Solid;font-size:10pt;">Date</th><th scope="col" style="color:Black;background-color:LightBlue;border-color:Black;border-width:1px;border-style:Solid;font-size:10pt;">Amount (Rs.)</th>
+			</tr><tr>
+				<td align="left" valign="middle" style="border-color:Black;border-width:1px;border-style:Solid;">
+                                                    PROCESSING FEES
+                                                </td><td align="center" valign="middle" style="border-color:Black;border-width:1px;border-style:Solid;">
+                                                    4400000000001
+                                                </td><td align="center" valign="middle" style="border-color:Black;border-width:1px;border-style:Solid;">
+                                                    03-नोव्हें.-2026
+                                                </td><td align="right" valign="middle" style="border-color:Black;border-width:1px;border-style:Solid;">
+                                                    130
+                                                </td>
+			</tr><tr>
+				<td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td align="right" valign="middle" style="border-color:Black;border-width:1px;border-style:Solid;">
+                                                    <span id="GrvRecDet_lblRecTotal">Total : 130</span>
+                                                </td>
+			</tr>
+		</table>
+	</div>
+            <br />
+
+                                    <input type="submit" name="btnPrintReceipt" value="Print Receipt" onclick="javascript:WebForm_DoPostBackWithOptions(new WebForm_PostBackOptions(&quot;btnPrintReceipt&quot;, &quot;&quot;, true, &quot;&quot;, &quot;&quot;, false, false))" id="btnPrintReceipt" class="ButtonWidth" style="font-size:Small;" />
+                                </td>
+                            </tr>
+                        </table>
+                         </div>
+                    
+</div>
+                   <input type="submit" name="btnCallGetConsInfo" value="Call" onclick="javascript:WebForm_DoPostBackWithOptions(new WebForm_PostBackOptions(&quot;btnCallGetConsInfo&quot;, &quot;&quot;, true, &quot;&quot;, &quot;&quot;, false, false))" id="btnCallGetConsInfo" style="display:none;" />
+    </div>
+            </div>
+    <div id="footer">
+         <div class="social_media_links">
+	<p>Follow us on : 
+		<a href="https://www.facebook.com/MSEDCL/" target="blank"><i class="fab fa-facebook-square" style="color:#1773ea;"></i></a>
+		<a href="https://twitter.com/@MSEDCL" target="blank"><i class="fa-brands fa-square-x-twitter" style="color:#000000"></i></a>
+		<a href="https://www.youtube.com/channel/UC8uLzqt4vZZwVeWLD9j4CDw" target="_blank"><i class="fab fa-youtube-square" style="color:#F60000;"></i></a>
+		<a href="https://instagram.com/msedclofficial?utm_medium=copy_link" target="_blank"><i class="fab fa-instagram-square" style="color:#FEB03D"></i></a>
+	</p>
+</div>
+                <a href="#">homepage</a> | Design by <a href="https://www.mahadiscom.in/" target="_blank">www.mahadiscom.in</a><br />
+                This work is licensed under a <a rel="license" href="https://www.mahadiscom.in/" target="_blank">MSEDCL</a>
+            </div>
+    </form>
+    <div class="loading" align="center">
+    Loading. Please wait.<br />
+    <br />
+    <img src="images/loader.gif" alt="" /> 
+    </div>
+    </div>
+</body>
+</html>
