@@ -51,7 +51,7 @@ svg{flex:none}
 .c-p{background:rgba(214,150,50,.14);color:var(--cp);border:1px solid rgba(214,150,50,.38)}
 .c-r{background:rgba(200,80,70,.14);color:var(--cr);border:1px solid rgba(200,80,70,.38)}
 .c-a{background:rgba(110,180,130,.14);color:var(--ca);border:1px solid rgba(110,180,130,.38)}
-.c-c{background:var(--pillon);color:var(--acc);border:1px solid var(--line)}
+.c-c{background:var(--pillon);color:var(--pillico);border:1px solid var(--line)}
 .foot{flex:none;text-align:center;font-size:10.5px;color:var(--sub);padding:5px 0;display:flex;align-items:center;justify-content:center;gap:4px}
 .foot a{color:var(--acc);font-weight:600;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 .heart{display:inline-block;color:#ff2d55;animation:beat 1.2s ease-in-out infinite;filter:drop-shadow(0 0 4px rgba(255,45,85,.7));transform-origin:center}
@@ -83,8 +83,8 @@ textarea.inp{height:auto;min-height:110px;padding:10px 12px;line-height:1.4;font
 .inprow{display:flex;gap:8px}.inprow .inp{flex:1}
 .list-item{display:flex;align-items:center;gap:10px;padding:10px 2px;border-bottom:1px solid var(--line)}
 .list-item:last-child{border-bottom:none}
-.ico{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;background:var(--pillon);flex:none}
-.ico svg{stroke:var(--acc)}
+.ico{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;background:var(--pillon);color:var(--pillico);flex:none}
+.ico svg{stroke:var(--pillico)}
 .setrow{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line);min-height:50px}
 .setrow:last-child{border-bottom:none}
 .setrow .lbl{flex:1;min-width:0}.setrow .lbl b{display:block;font-size:13.5px;font-weight:500}.setrow .lbl span{font-size:11px;color:var(--sub)}
@@ -125,8 +125,8 @@ textarea.inp{height:auto;min-height:110px;padding:10px 12px;line-height:1.4;font
 
 .modecard{display:flex;gap:12px;align-items:center;cursor:pointer;padding:16px}
 .modecard.sel{border-color:var(--glowborder);box-shadow:var(--glow)}
-.big-ico{width:54px;height:54px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:var(--pillon)}
-.big-ico svg{stroke:var(--acc)}
+.big-ico{width:54px;height:54px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:var(--pillon);color:var(--pillico)}
+.big-ico svg{stroke:var(--pillico)}
 .pin{display:flex;gap:12px;justify-content:center;margin:10px 0}
 .pin i{width:16px;height:16px;border-radius:50%;border:2px solid var(--acc)}.pin i.f{background:var(--acc)}
 .keypad{display:grid;grid-template-columns:repeat(3,72px);gap:12px;justify-content:center}
@@ -154,3 +154,8 @@ textarea.inp{height:auto;min-height:110px;padding:10px 12px;line-height:1.4;font
 .themecard{border-radius:14px;padding:8px;border:2px solid transparent;cursor:pointer;display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:600;color:#fff;text-align:left}
 .themecard.on{border-color:var(--acc);box-shadow:var(--glow)}
 .themecard .sw{display:flex;gap:4px}.themecard .sw i{flex:1;height:26px;border-radius:7px}
+
+::-webkit-scrollbar{width:6px;height:0}::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}::-webkit-scrollbar-track{background:transparent}
+
+/* Old Android WebView (before Chrome 84) has no flex gap: add spacing by margin there only */
+@supports not (inset:0){button>svg,.btn>svg,a>svg{margin-right:6px}.foot .heart{margin:0 5px}.stats>*+*,.row>*+*{margin-left:8px}}

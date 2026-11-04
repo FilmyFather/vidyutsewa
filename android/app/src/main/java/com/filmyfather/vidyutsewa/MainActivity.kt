@@ -33,6 +33,7 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) WebView.setWebContentsDebuggingEnabled(true)
         web = WebView(this)
         setContentView(web)
         web.setBackgroundColor(Color.parseColor("#050A24"))
@@ -58,6 +59,16 @@ class MainActivity : Activity() {
             override fun shouldOverrideUrlLoading(view: WebView, req: WebResourceRequest): Boolean {
                 if (req.url.host == ASSET_HOST) return false
                 openExternal(req.url.toString()); return true
+            }
+            override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                // The WebView engine crashed or was killed for memory: rebuild the screen instead of crashing the app.
+                val now = System.currentTimeMillis()
+                if (now - lastCrash < 30000) {
+                    android.app.AlertDialog.Builder(this@MainActivity).setTitle("Display Problem")
+                        .setMessage("The Screen Engine (Android System WebView) Stopped. Please Update \"Android System WebView\" And \"Chrome\" From Play Store, Then Open The App Again.")
+                        .setPositiveButton("OK") { _, _ -> finish() }.setCancelable(false).show()
+                } else { lastCrash = now; recreate() }
+                return true
             }
         }
         web.webChromeClient = object : WebChromeClient() {
@@ -277,6 +288,7 @@ class MainActivity : Activity() {
 
     companion object {
         const val REQ_FILE = 11; const val REQ_CAMERA = 12; const val REQ_OFFICIAL = 13
+        @Volatile var lastCrash = 0L
         val UI_METHODS = setOf("exit", "openExternal", "theme", "openOfficial", "clearWebSession", "share", "openFile", "biometric")
     }
 }

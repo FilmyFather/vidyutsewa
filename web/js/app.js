@@ -16,6 +16,8 @@
     ['sunset', 'Sunset Power', ['#1A1A1E', '#FF7A18', '#F43F78']],
     ['aurora', 'Purple Aurora', ['#1A0D33', '#8B5CF6', '#D946EF']]
   ];
+  var THEME_IDS = THEMES.map(function (x) { return x[0]; });
+  function themeId(v) { return THEME_IDS.indexOf(v) >= 0 ? v : 'royal'; }
   var root, S = function () { return VS.state; };
   var UI = { route: 'home', params: {}, stack: [], period: 'today', appsTab: 'pending', q: '', draft: null, bill: null, locked: false, unread: 0 };
   window.UI = UI;
@@ -55,7 +57,7 @@
     if (th === 'system') th = window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
     var de = document.documentElement;
     de.className = th === 'light' ? 'light' : 'dark';
-    de.setAttribute('data-theme', s.themeStyle || 'royal');
+    de.setAttribute('data-theme', themeId(s.themeStyle));
     if (window.I18N) I18N.set(s.lang);
     var pg = getComputedStyle(de).getPropertyValue('--page').trim();
     Native.call('theme', { dark: th !== 'light', color: pg }).catch(function () {});
@@ -277,7 +279,7 @@
     var body = '<div class="seg"><button class="' + (UI.period === 'today' ? 'on' : '') + '" onclick="UI.period=\'today\';UI.render(true)">' + t('Today') + '</button><button class="' + (UI.period === 'month' ? 'on' : '') + '" onclick="UI.period=\'month\';UI.render(true)">' + t('This Month') + '</button></div>' +
       '<div class="st4"><div class="card stat x"><div class="n">' + st.applied + '</div><div class="l">' + t('Applied') + '</div></div><div class="card stat p"><div class="n">' + st.pending + '</div><div class="l">' + t('Pending') + '</div></div>' +
       '<div class="card stat r"><div class="n">' + st.rejected + '</div><div class="l">' + t('Rejected') + '</div></div><div class="card stat a"><div class="n">' + st.approved + '</div><div class="l">' + t('Approved') + '</div></div></div>' +
-      (shop ? '<div class="card glow row between"><div class="row"><div class="ico">' + icon('rupee', 20) + '</div><div><div class="small muted">' + t('Service Fee Earnings') + ' \u2022 ' + (UI.period === 'today' ? t('Today') : t('This Month')) + '</div><div style="font-size:22px;font-weight:700" class="acc">\u20B9' + st.earnings + '</div></div></div><div class="tiny muted" style="text-align:right">' + st.applied + ' ' + t('Customers') + '</div></div>' : '') +
+      (shop ? '<div class="card glow row between"><div class="row"><div class="ico">' + icon('rupee', 20) + '</div><div><div class="small muted">' + t('Service Fee Earnings') + ' \u2022 ' + (UI.period === 'today' ? t('Today') : t('This Month')) + '</div><div style="font-size:22px;font-weight:700" class="acc">\u20B9' + st.earnings + '</div></div></div><div class="tiny muted" style="text-align:right">' + st.applied + ' ' + t(st.applied === 1 ? 'Customer' : 'Customers') + '</div></div>' : '') +
       '<button class="btn pri" onclick="UI.newApp()">' + icon('plus', 20) + t('New Application') + '</button>' +
       '<div class="btns2"><button class="btn out" onclick="UI.addOld()">' + icon('history', 18) + t('Add Old Application') + '</button><button class="btn ghost" onclick="UI.tab(\'bill\')">' + icon('download', 18) + t('Bill Download') + '</button></div>';
     if (dls.length) {
@@ -717,7 +719,7 @@
     if (b) b.innerHTML = icon('refresh', 15) + t('Check For Updates');
   };
   screens.settings = function () {
-    var s = S().settings, andr = Native.platform === 'android', ts = s.themeStyle || 'royal';
+    var s = S().settings, andr = Native.platform === 'android', ts = themeId(s.themeStyle);
     var body =
       '<div class="sethead">' + icon('moon', 15) + t('Appearance') + '</div><div class="card">' +
       '<div class="small muted" style="margin-bottom:6px">' + t('Theme') + '</div><div class="themes">' + THEMES.map(function (th) {

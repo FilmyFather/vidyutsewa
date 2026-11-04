@@ -29,7 +29,7 @@ Get the latest files from **[Releases](https://github.com/FilmyFather/vidyutsewa
 - **Background status checks** every 15 / 30 / 60 min (Android WorkManager; Windows while the app runs in the tray) with notifications: "Application Approved - ID", "Application Rejected - ID", "Re-Uploading Document - ID", re-upload done / failed. On approval the saved PDFs are deleted (setting).
 - **Bill**: 12-digit consumer number → bill card (name, consumer no, billing unit, units, bill month, bill date, amount, due date, after-due amount, prompt payment discount) → **original MSEDCL bill PDF** download / share on WhatsApp, previous months, recent numbers.
 - **Documents**: vault per Application ID.
-- **Settings** (gear, top right): 4 themes (Royal Electric, Emerald Luxe, Sunset Power, Purple Aurora) × Dark / Light / System, English / हिंदी / मराठी, mode, notifications, compression quality, auto re-upload, auto-delete, optional App Lock (PIN, fingerprint on Android), Next Customer wipe, WhatsApp template (`{Name}` `{ID}` `{Shop Name}`), backup & restore (one file with all data + PDFs), storage, update check against GitHub Releases.
+- **Settings** (gear, top right): 4 themes (Royal Electric (default), Emerald Luxe, Sunset Power, Purple Aurora) × Dark / Light / System, English / हिंदी / मराठी, mode, notifications, compression quality, auto re-upload, auto-delete, optional App Lock (PIN, fingerprint on Android), Next Customer wipe, WhatsApp template (`{Name}` `{ID}` `{Shop Name}`), backup & restore (one file with all data + PDFs), storage, update check against GitHub Releases.
 
 ## Privacy
 

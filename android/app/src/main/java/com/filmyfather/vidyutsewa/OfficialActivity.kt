@@ -97,6 +97,9 @@ class OfficialActivity : Activity() {
             override fun onPageFinished(view: WebView, url: String) {
                 injectCss(view); injectHook(view); scan(url)
             }
+            override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                toast("Page Crashed. Please Open It Again."); finishWithResult(); return true
+            }
         }
         w.webChromeClient = Chrome()
         w.setDownloadListener { url, ua, cd, mime, _ -> download(url, ua, cd, mime) }
