@@ -25,10 +25,10 @@ android {
 
     defaultConfig {
         applicationId = "com.filmyfather.vidyutsewa"
-        minSdk = 24
+        minSdk = 21
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.1"
     }
 
     signingConfigs {
@@ -39,6 +39,9 @@ android {
                 storePassword = ks("storePassword", "VS_KEYSTORE_PASSWORD")
                 keyAlias = ks("keyAlias", "VS_KEY_ALIAS") ?: "vidyutsewa"
                 keyPassword = ks("keyPassword", "VS_KEY_PASSWORD")
+                enableV1Signing = true   // old Android (5-6) needs the JAR signature
+                enableV2Signing = true
+                enableV3Signing = true
             }
         }
     }

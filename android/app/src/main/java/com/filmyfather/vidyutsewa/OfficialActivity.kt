@@ -18,6 +18,7 @@ import android.webkit.*
 import android.widget.*
 import androidx.core.content.FileProvider
 import java.io.File
+import org.json.JSONObject
 
 /** The official MSEDCL websites inside the app. The user types login, captcha and OTP and pays on the official page; the app never submits anything itself. */
 class OfficialActivity : Activity() {
@@ -185,7 +186,13 @@ class OfficialActivity : Activity() {
             fileCb?.onReceiveValue(null); fileCb = cb
             val ids = listOf(appId, "draft").filter { it.isNotEmpty() }.distinct()
             val saved = mutableListOf<Pair<String, File>>()
-            for (id in ids) for (slot in listOf("agreement", "formx")) { val f = Store.docFile(this@OfficialActivity, id, slot); if (f.exists()) saved.add(Store.docName(if (id == "draft") (captured ?: "New") else id, slot) to f) }
+            val data = Store.read(this@OfficialActivity).optJSONArray("apps")
+            for (id in ids) {
+                var app: JSONObject? = null
+                if (data != null) for (i in 0 until data.length()) data.optJSONObject(i)?.let { if (it.optString("id") == id) app = it }
+                val slots = if (id == "draft" || app == null) listOf("agreement", "formx", "single") else Store.slotsFor(app!!)
+                for (slot in slots) { val f = Store.docFile(this@OfficialActivity, id, slot); if (f.exists()) saved.add(Store.docName(if (id == "draft") (captured ?: "New") else id, slot) to f) }
+            }
             val labels = saved.map { "\uD83D\uDCC4 ${it.first}  (${it.second.length() / 1024} KB, Saved)" } + listOf("\uD83D\uDCC2 Choose Another File")
             AlertDialog.Builder(this@OfficialActivity).setTitle("Choose File To Upload")
                 .setItems(labels.toTypedArray()) { _, which ->
@@ -207,7 +214,33 @@ class OfficialActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(req: Int, res: Int, data: Intent?) {
         super.onActivityResult(req, res, data)
-        if (req == REQ_PICK) { fileCb?.onReceiveValue(if (res == RESULT_OK && data?.data != null) arrayOf(data.data!!) else null); fileCb = null }
+        if (req == REQ_PICK) {
+            val uri = data?.data
+            if (res != RESULT_OK || uri == null) { fileCb?.onReceiveValue(null); fileCb = null; return }
+            // A file picked from the phone is copied under a clean name (no spaces / special characters); an oversize picture is gently shrunk below 1 MB.
+            Thread {
+                var result: Uri? = null; var note: String? = null
+                try {
+                    var display = "Document"
+                    contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { if (it.moveToFirst()) display = it.getString(0) ?: display }
+                    val mime = contentResolver.getType(uri) ?: ""
+                    val bytes = contentResolver.openInputStream(uri)!!.use { it.readBytes() }
+                    val isPdf = mime.contains("pdf") || display.lowercase().endsWith(".pdf")
+                    var out = bytes; var name = display
+                    if (!isPdf && bytes.size > Store.UPLOAD_LIMIT) {
+                        val shrunk = Store.shrinkImage(bytes)
+                        if (shrunk != null) { out = shrunk; name = display.substringBeforeLast('.') + ".jpg" } else note = "File Is Over 1 MB"
+                    } else if (isPdf && bytes.size > Store.UPLOAD_LIMIT) note = "PDF Is Over 1 MB. Add It In The App First So It Gets Compressed"
+                    val file = File(File(cacheDir, "upload").apply { mkdirs() }, Store.safeName(name, "Document", if (isPdf) "pdf" else "jpg"))
+                    file.writeBytes(out)
+                    result = FileProvider.getUriForFile(this, "$packageName.files", file)
+                } catch (e: Exception) { note = "Could Not Read The File" }
+                runOnUiThread {
+                    note?.let { android.widget.Toast.makeText(this, it, android.widget.Toast.LENGTH_LONG).show() }
+                    fileCb?.onReceiveValue(result?.let { arrayOf(it) }); fileCb = null
+                }
+            }.start()
+        }
     }
 
     private fun download(url: String, ua: String, cd: String?, mime: String?) {

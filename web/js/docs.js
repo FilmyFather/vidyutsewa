@@ -2,12 +2,9 @@
  * Everything happens locally in the app; no file ever leaves the device here. */
 (function () {
   'use strict';
-  var LIMIT = 300 * 1024;           // MSEDCL upload limit
-  var TARGET = 292 * 1024;          // keep a margin under the limit
-  var DIMS = { high: [2200, 1900, 1600, 1400, 1200, 1000, 850, 700, 600],
-               balanced: [1700, 1450, 1250, 1050, 900, 760, 640, 560],
-               small: [1250, 1050, 900, 760, 640, 540, 460] };
-  var QUAL = [0.82, 0.72, 0.62, 0.54, 0.46, 0.38, 0.32];
+  var LIMIT = 1048576;              // MSEDCL upload page: "Only files upto 1MB are allowed". Up to this size a file is never touched.
+  var TARGET = 1000000;             // bigger files are compressed to just under this (a little below 1 MB either way you count it)
+  var MIN_Q = 0.5, GOOD_Q = 0.72;   // JPEG quality range for the gentle search (never below MIN_Q)
 
   function pdfjs() {
     var lib = window.pdfjsLib;
@@ -42,24 +39,61 @@
       c.toBlob(function (b) { readBytes(b).then(function (bytes) { res({ bytes: bytes, w: w, h: h }); }); }, 'image/jpeg', q);
     });
   }
-  // compress a list of drawable sources so the total fits the budget
-  async function fitPages(sources, quality) {
-    var dims = DIMS[quality] || DIMS.balanced;
-    var per = (TARGET - 1500 - sources.length * 600) / sources.length;
-    var pages = [];
-    for (var i = 0; i < sources.length; i++) {
-      var s = sources[i], best = null;
-      outer: for (var d = 0; d < dims.length; d++) {
-        for (var k = 0; k < QUAL.length; k++) {
-          var r = await toJpeg(s.el, s.w, s.h, dims[d], QUAL[k]);
-          best = r;
-          if (r.bytes.length <= per) break outer;
-          if (k >= 3) break; // drop resolution before quality gets ugly
+  // Gentle compression: keep the highest resolution that still allows a good quality, then use the best quality that fits.
+  async function fitPage(src, per) {
+    var longest = Math.max(src.w, src.h), dim = Math.min(longest, 3200), fallback = null;
+    for (var step = 0; step < 14; step++) {
+      var lo = MIN_Q, hi = 0.95, hit = null, r = await toJpeg(src.el, src.w, src.h, dim, hi);
+      if (r.bytes.length <= per) hit = { r: r, q: hi };
+      else {
+        var rl = await toJpeg(src.el, src.w, src.h, dim, lo);
+        if (rl.bytes.length <= per) {
+          hit = { r: rl, q: lo };
+          for (var i = 0; i < 5; i++) {
+            var mid = (lo + hi) / 2, rm = await toJpeg(src.el, src.w, src.h, dim, mid);
+            if (rm.bytes.length <= per) { lo = mid; hit = { r: rm, q: mid }; } else hi = mid;
+          }
         }
       }
-      pages.push(best);
+      if (hit) { fallback = hit.r; if (hit.q >= GOOD_Q) return hit.r; }
+      dim = Math.round(dim * 0.88);
+      if (dim < 500) break;
     }
+    return fallback || await toJpeg(src.el, src.w, src.h, 500, 0.4);
+  }
+  async function fitPages(sources, factor) {
+    var per = (TARGET * (factor || 1) - 1500 - sources.length * 600) / sources.length, pages = [];
+    for (var i = 0; i < sources.length; i++) pages.push(await fitPage(sources[i], per));
     return pages;
+  }
+
+  /* ---- JPEG facts (size, colour channels, rotation flag) so an untouched JPEG can be wrapped into a PDF as it is ---- */
+  function jpegInfo(b) {
+    if (b.length < 4 || b[0] !== 0xFF || b[1] !== 0xD8) return null;
+    var i = 2, orient = 1, info = null;
+    while (i + 4 < b.length) {
+      if (b[i] !== 0xFF) { i++; continue; }
+      var m = b[i + 1];
+      if (m === 0xFF) { i++; continue; }
+      if (m === 0xD8 || (m >= 0xD0 && m <= 0xD7) || m === 0x01) { i += 2; continue; }
+      var len = (b[i + 2] << 8) | b[i + 3];
+      if (m === 0xE1 && b[i + 4] === 0x45 && b[i + 5] === 0x78 && b[i + 6] === 0x69 && b[i + 7] === 0x66) {   // "Exif"
+        var t = i + 10, le = b[t] === 0x49;
+        var u16 = function (o) { return le ? (b[t + o] | (b[t + o + 1] << 8)) : ((b[t + o] << 8) | b[t + o + 1]); };
+        var u32 = function (o) { return le ? (b[t + o] | (b[t + o + 1] << 8) | (b[t + o + 2] << 16) | (b[t + o + 3] << 24)) : ((b[t + o] << 24) | (b[t + o + 1] << 16) | (b[t + o + 2] << 8) | b[t + o + 3]); };
+        try {
+          var ifd = u32(4), n = u16(ifd);
+          for (var k = 0; k < n; k++) { var e = ifd + 2 + k * 12; if (u16(e) === 0x0112) { orient = u16(e + 8); break; } }
+        } catch (err) {}
+      }
+      if (m >= 0xC0 && m <= 0xCF && m !== 0xC4 && m !== 0xC8 && m !== 0xCC) {
+        info = { h: (b[i + 5] << 8) | b[i + 6], w: (b[i + 7] << 8) | b[i + 8], comps: b[i + 9], progressive: m === 0xC2, baseline: m === 0xC0 || m === 0xC1 };
+        break;
+      }
+      i += 2 + len;
+    }
+    if (info) info.orient = orient;
+    return info;
   }
 
   /* ---- minimal PDF writer: one JPEG per page (DCTDecode) ---- */
@@ -80,7 +114,7 @@
       obj(pn, function () { push('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + W + ' ' + H + '] /Resources << /XObject << /Im0 ' + im + ' 0 R >> >> /Contents ' + cn + ' 0 R >>'); });
       obj(cn, function () { push('<< /Length ' + content.length + ' >>\nstream\n' + content + '\nendstream'); });
       obj(im, function () {
-        push('<< /Type /XObject /Subtype /Image /Width ' + p.w + ' /Height ' + p.h + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + p.bytes.length + ' >>\nstream\n');
+        push('<< /Type /XObject /Subtype /Image /Width ' + p.w + ' /Height ' + p.h + ' /ColorSpace /' + (p.gray ? 'DeviceGray' : 'DeviceRGB') + ' /BitsPerComponent 8 /Filter /DCTDecode /Length ' + p.bytes.length + ' >>\nstream\n');
         push(p.bytes); push('\nendstream');
       });
     });
@@ -110,27 +144,37 @@
     return { pages: out, total: doc.numPages };
   }
 
-  /* Public: turn any picked file into ONE upload-ready PDF under 300 KB (compressed once). */
+  /* Public: turn any picked file into ONE upload-ready PDF.
+   * - A PDF up to 1 MB is returned byte for byte (not touched).
+   * - A JPEG up to 1 MB is put into a PDF page as it is (its picture bytes are not re-encoded).
+   * - Only a file over 1 MB is compressed, as gently as possible, to just under 1 MB. */
   async function process(file, opts) {
     opts = opts || {};
     var bytes = await readBytes(file), origSize = bytes.length;
     var pdf = isPdf(bytes) || /pdf/i.test(file.type || '') || /\.pdf$/i.test(file.name || '');
     if (pdf && bytes.length <= LIMIT) return { bytes: bytes, origSize: origSize, size: bytes.length, compressed: false, pages: null };
+    if (!pdf && bytes.length <= LIMIT) {
+      var ji = jpegInfo(bytes);
+      if (ji && ji.baseline && (ji.comps === 1 || ji.comps === 3) && ji.orient === 1 && ji.w > 0 && ji.h > 0) {
+        var wrapped = buildPdf([{ bytes: bytes, w: ji.w, h: ji.h, gray: ji.comps === 1 }]);
+        if (wrapped.length <= LIMIT) return { bytes: wrapped, origSize: origSize, size: wrapped.length, compressed: false, wrapped: true, pages: 1 };
+      }
+    }
     var sources, pagesTotal = 1;
     if (pdf) {
-      var r = await renderPdfPages(bytes, 12, (DIMS[opts.quality] || DIMS.balanced)[0]);
+      var r = await renderPdfPages(bytes, 20, 2480);
       sources = r.pages; pagesTotal = r.total;
     } else {
       var img = await loadImage(file);
       sources = [{ el: img, w: img.naturalWidth, h: img.naturalHeight }];
     }
-    var pages = await fitPages(sources, opts.quality);
+    var pages = await fitPages(sources);
     var out = buildPdf(pages);
-    if (out.length > LIMIT) {
-      pages = await fitPages(sources, 'small');
+    if (out.length > TARGET + 20000) {
+      pages = await fitPages(sources, 0.93);
       out = buildPdf(pages);
     }
-    if (out.length > LIMIT) throw new Error('Could Not Compress Below 300 KB. Try A Clearer Scan With Fewer Pages.');
+    if (out.length > LIMIT) throw new Error('Could Not Compress Below 1 MB. Try A Clearer Scan With Fewer Pages.');
     return { bytes: out, origSize: origSize, size: out.length, compressed: true, pages: pages.length, skipped: pagesTotal - pages.length };
   }
 
@@ -162,6 +206,6 @@
     return (n / 1048576).toFixed(1) + ' MB';
   }
 
-  window.VSDocs = { LIMIT: LIMIT, process: process, thumb: thumb, renderAll: renderAll, buildPdf: buildPdf,
+  window.VSDocs = { LIMIT: LIMIT, TARGET: TARGET, jpegInfo: jpegInfo, process: process, thumb: thumb, renderAll: renderAll, buildPdf: buildPdf,
     b64FromBytes: b64FromBytes, bytesFromB64: bytesFromB64, fmtSize: fmtSize, readBytes: readBytes, isPdf: isPdf };
 })();

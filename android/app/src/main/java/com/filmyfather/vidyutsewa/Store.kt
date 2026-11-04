@@ -8,11 +8,40 @@ import java.io.File
 
 /** All app data lives in the app's private storage: data.json + vault/<applicationId>/<slot>.pdf. Nothing leaves the device. */
 object Store {
+    const val UPLOAD_LIMIT = 1048576
+    /** Gentle JPEG shrink for a picture over 1 MB: highest resolution and quality that still end just under 1 MB. */
+    fun shrinkImage(bytes: ByteArray): ByteArray? {
+        val src = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
+        var scale = minOf(1.0, 3200.0 / maxOf(src.width, src.height))
+        repeat(12) {
+            val bmp = if (scale < 1.0) android.graphics.Bitmap.createScaledBitmap(src, (src.width * scale).toInt().coerceAtLeast(1), (src.height * scale).toInt().coerceAtLeast(1), true) else src
+            var q = 95
+            while (q >= 50) {
+                val bo = java.io.ByteArrayOutputStream(); bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, q, bo)
+                if (bo.size() <= 1000000) { if (q >= 72) return bo.toByteArray() else if (scale <= 0.4) return bo.toByteArray(); break }
+                q -= 5
+            }
+            scale *= 0.88
+        }
+        return null
+    }
     private val lock = Any()
     private fun dataFile(c: Context) = File(c.filesDir, "data.json")
     fun vaultDir(c: Context, id: String): File = File(c.filesDir, "vault/" + id.replace(Regex("[^A-Za-z0-9_-]"), ""))
-    fun docFile(c: Context, id: String, slot: String) = File(vaultDir(c, id), (if (slot == "formx") "formx" else "agreement") + ".pdf")
-    fun docName(id: String, slot: String) = (if (slot == "formx") "FormX_" else "Agreement_") + id + ".pdf"
+    fun slotFile(slot: String) = when (slot) { "formx" -> "formx"; "single" -> "single"; else -> "agreement" }
+    fun docFile(c: Context, id: String, slot: String) = File(vaultDir(c, id), slotFile(slot) + ".pdf")
+    /** Upload-safe name: letters, digits, _ and - only (the official page rejects spaces and special characters). */
+    fun safeName(name: String, fallbackBase: String = "Document", fallbackExt: String = "pdf"): String {
+        val dot = name.lastIndexOf('.')
+        val hasExt = dot > 0 && dot < name.length - 1 && name.length - dot <= 6
+        val ext = (if (hasExt) name.substring(dot + 1) else fallbackExt).replace(Regex("[^A-Za-z0-9]"), "").lowercase().ifEmpty { fallbackExt }
+        var base = (if (hasExt) name.substring(0, dot) else name).replace(Regex("[^A-Za-z0-9_-]+"), "_").replace(Regex("_{2,}"), "_").trim('_', '-').take(60)
+        if (base.isEmpty()) base = fallbackBase
+        return "$base.$ext"
+    }
+    fun docName(id: String, slot: String) = safeName((when (slot) { "formx" -> "FormX_"; "single" -> "SpellingCorrection_"; else -> "Agreement_" }) + id + ".pdf")
+    /** Slots an application needs: spelling correction = one PDF, normal = Agreement + Form X. */
+    fun slotsFor(a: JSONObject) = if (a.optString("docMode") == "spell") listOf("single") else listOf("agreement", "formx")
 
     fun readRaw(c: Context): String = synchronized(lock) { dataFile(c).takeIf { it.exists() }?.readText() ?: "" }
 

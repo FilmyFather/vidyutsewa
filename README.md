@@ -12,8 +12,8 @@ Get the latest files from **[Releases](https://github.com/FilmyFather/vidyutsewa
 
 | File | For |
 |---|---|
-| `VidyutSewa-By-Yuvraj-1.0.0.apk` | Android 7.0 and newer |
-| `VidyutSewa-By-Yuvraj-1.0.0-Windows-Portable.exe` | Windows 10 / 11 (64-bit), no install needed |
+| `VidyutSewa-By-Yuvraj-1.0.1.apk` | Android 5.0 and newer (signed with v1 + v2 + v3 schemes) |
+| `VidyutSewa-By-Yuvraj-1.0.1-Windows-Portable.exe` | Windows 10 / 11 (64-bit), no install needed |
 
 **Android:** open the APK, allow "Install Unknown Apps" for your browser / WhatsApp / file manager when asked, then tap Install. Allow notifications so status alerts can arrive.
 
@@ -23,13 +23,21 @@ Get the latest files from **[Releases](https://github.com/FilmyFather/vidyutsewa
 
 - **Shop Mode / Personal Mode**: shop name, default service fee and earnings for cyber cafe / CSC / xerox shops.
 - **Home**: today / this month counts (Applied, Pending, Rejected, Approved), service-fee earnings, 3-day document upload deadline countdowns, recent activity.
-- **New Application**: checklist → Agreement + Form X from camera, gallery or files (any size) → compressed **once, on the device**, to a PDF under 300 KB with a clean file name (`Agreement_<ID>.pdf`, `FormX_<ID>.pdf`) → preview, swap, auto-detect by file name (Agmt / Agrmt / Agreement, Xform / X-Form / FormX) → confirm → apply on the **official MSEDCL site inside the app** → the 8-digit Application ID is captured from the page when possible (or typed) and saved.
-- **Add Old Application**: 8-digit ID → verified from the official status page (name, consumer no, status) → both PDFs are mandatory before saving.
+- **New Application**: checklist → Agreement + Form X from camera, gallery or files (any size) → a file **up to 1 MB is never touched** (a JPEG is only placed into a PDF page as it is); a bigger file is compressed **once, on the device**, as gently as possible to just under 1 MB (the official upload page allows 1 MB), always with a clean file name (`Agreement_<ID>.pdf`, `FormX_<ID>.pdf`) → preview, swap, auto-detect by file name (Agmt / Agrmt / Agreement, Xform / X-Form / FormX) → confirm → apply on the **official MSEDCL site inside the app** → the 8-digit Application ID is captured from the page when possible (or typed) and saved.
+- **Add Old Application**: 8-digit ID → verified from the official status page (name, consumer no, status) → choose the type → the PDFs are mandatory before saving.
+- **Application type (per application)**: `Normal - Agreement + Form X` (two PDFs, both mandatory) or `Spelling Correction - 1 PDF` (exactly one PDF). Re-upload, details, Documents vault, WhatsApp share text and the 3-day deadline all follow the type.
 - **Applications**: Pending / Rejected / Approved tabs, search by ID, name, consumer no or mobile; detail with timeline, fee + receipt, saved PDFs, Re-Upload, Share On WhatsApp, Open Official Status, Download Provisional Certificate (approved).
 - **Background status checks** every 15 / 30 / 60 min (Android WorkManager; Windows while the app runs in the tray) with notifications: "Application Approved - ID", "Application Rejected - ID", "Re-Uploading Document - ID", re-upload done / failed. On approval the saved PDFs are deleted (setting).
 - **Bill**: 12-digit consumer number → bill card (name, consumer no, billing unit, units, bill month, bill date, amount, due date, after-due amount, prompt payment discount) → **original MSEDCL bill PDF** download / share on WhatsApp, previous months, recent numbers.
 - **Documents**: vault per Application ID.
-- **Settings** (gear, top right): 4 themes (Royal Electric (default), Emerald Luxe, Sunset Power, Purple Aurora) × Dark / Light / System, English / हिंदी / मराठी, mode, notifications, compression quality, auto re-upload, auto-delete, optional App Lock (PIN, fingerprint on Android), Next Customer wipe, WhatsApp template (`{Name}` `{ID}` `{Shop Name}`), backup & restore (one file with all data + PDFs), storage, update check against GitHub Releases.
+- **Settings** (gear, top right): 4 themes (Royal Electric (default), Emerald Luxe, Sunset Power, Purple Aurora) × Dark / Light / System, English / हिंदी / मराठी, mode, notifications, auto re-upload, auto-delete, optional App Lock (PIN, fingerprint on Android), Next Customer wipe, WhatsApp template (`{Name}` `{ID}` `{Shop Name}`), backup & restore (one file with all data + PDFs), storage, update check against GitHub Releases.
+
+## What's new in 1.0.1
+
+- Files up to 1 MB are not compressed at all; bigger files are gently compressed to just under 1 MB (was 300 KB).
+- Upload file names only use letters, digits, `_` and `-` plus the extension, also for files that are not compressed.
+- Spelling Correction applications need and upload only one PDF.
+- Install fix for older phones: the APK is now signed with v1 + v2 + v3 and supports Android 5.0 and newer.
 
 ## Privacy
 

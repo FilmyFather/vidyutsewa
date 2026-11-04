@@ -189,7 +189,7 @@ class MainActivity : Activity() {
         "saveDownload" -> saveDownload(a.getString("name"), Base64.decode(a.getString("b64"), Base64.DEFAULT), a.optString("mime", "application/octet-stream"))
         "storageInfo" -> JSONObject().put("docs", Store.dirSize(File(filesDir, "vault"))).put("cache", Store.dirSize(cacheDir))
         "clearCache" -> { cacheDir.listFiles()?.forEach { it.deleteRecursively() }; runOnUiThread { web.clearCache(true) }; true }
-        "appInfo" -> JSONObject().put("version", "1.0.0").put("platform", "android")
+        "appInfo" -> JSONObject().put("version", "1.0.1").put("platform", "android")
         else -> throw Exception("Unknown Action $method")
     }
     private fun evJson(ev: List<Checker.Ev>) = JSONArray().apply { ev.forEach { put(JSONObject().put("title", it.title).put("body", it.body)) } }

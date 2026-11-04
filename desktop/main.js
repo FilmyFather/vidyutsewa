@@ -16,8 +16,9 @@ app.setAppUserModelId(APP_ID);
 const userDir = () => app.getPath('userData');
 const dataFile = () => path.join(userDir(), 'data.json');
 const vaultDir = (id) => path.join(userDir(), 'vault', String(id).replace(/[^A-Za-z0-9_-]/g, ''));
-const docFile = (id, slot) => path.join(vaultDir(id), (slot === 'formx' ? 'formx' : 'agreement') + '.pdf');
-const docName = (id, slot) => (slot === 'formx' ? 'FormX_' : 'Agreement_') + id + '.pdf';
+const docFile = (id, slot) => path.join(vaultDir(id), (slot === 'formx' ? 'formx' : slot === 'single' ? 'single' : 'agreement') + '.pdf');
+const safeName = (n) => n.replace(/[^A-Za-z0-9_.-]+/g, '_');   // letters, digits, _ - and the extension only
+const docName = (id, slot) => safeName((slot === 'formx' ? 'FormX_' : slot === 'single' ? 'SpellingCorrection_' : 'Agreement_') + id + '.pdf');
 const dlDir = () => { const d = path.join(app.getPath('downloads'), 'VidyutSewa'); fs.mkdirSync(d, { recursive: true }); return d; };
 function dirSize(p) { try { const s = fs.statSync(p); if (s.isFile()) return s.size; return fs.readdirSync(p).reduce((a, f) => a + dirSize(path.join(p, f)), 0); } catch (e) { return 0; } }
 function event(name, data) { if (win && !win.isDestroyed()) win.webContents.send('vs-event', name, JSON.stringify(data || {})); }
@@ -98,7 +99,7 @@ function openOfficial(a) {
     ow.removeMenu();
     const ids = [a.appId, 'draft'].filter(Boolean);
     const copied = [];
-    for (const id of ids) for (const slot of ['agreement', 'formx']) {
+    for (const id of ids) for (const slot of ['agreement', 'formx', 'single']) {
       const f = docFile(id, slot);
       if (fs.existsSync(f)) { const d = path.join(dlDir(), id === 'draft' ? 'New_Application' : id); fs.mkdirSync(d, { recursive: true }); const out = path.join(d, docName(id === 'draft' ? 'New' : id, slot)); fs.copyFileSync(f, out); copied.push(out); }
     }

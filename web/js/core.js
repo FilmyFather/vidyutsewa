@@ -5,7 +5,8 @@
   var UA = 'Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36';
   var DAY = 86400000;
 
-  var DEFAULT_TEMPLATE = 'Namaste {Name} \uD83D\uDE4F\nYour Electricity Name Change Application Has Been Submitted.\nApplication ID: {ID}\nTrack Status: https://css.mahadiscom.in/UI/CHANGENAME/ChangeNameUploadDoc.aspx?applicationno={ID}\n- {Shop Name}';
+  var OLD_TEMPLATE = 'Namaste {Name} \uD83D\uDE4F\nYour Electricity Name Change Application Has Been Submitted.\nApplication ID: {ID}\nTrack Status: https://css.mahadiscom.in/UI/CHANGENAME/ChangeNameUploadDoc.aspx?applicationno={ID}\n- {Shop Name}';
+  var DEFAULT_TEMPLATE = 'Namaste {Name} \uD83D\uDE4F\nYour Electricity Name Change Application Has Been Submitted.\nApplication ID: {ID}\nApplication Type: {Type}\nTrack Status: https://css.mahadiscom.in/UI/CHANGENAME/ChangeNameUploadDoc.aspx?applicationno={ID}\n- {Shop Name}';
   function defaults() {
     return {
       v: 1,
@@ -24,6 +25,7 @@
       if (raw) {
         var d = typeof raw === 'string' ? JSON.parse(raw) : raw;
         state = merge(d, defaults()); merge(state.settings, defaults().settings);
+        if (state.settings.waTemplate === OLD_TEMPLATE) state.settings.waTemplate = DEFAULT_TEMPLATE;   // older default gets the new Application Type line
       }
     } catch (e) { console.error('load', e); }
     return state;
@@ -53,12 +55,16 @@
     return Native.call('deleteDocs', { id: id });
   }
 
-  function hasDocs(a) { return !!(a.docs && a.docs.agreement && a.docs.formx); }
+  function docMode(a) { return a && a.docMode === 'spell' ? 'spell' : 'normal'; }
+  function docSlots(a) { return P.docSlots(docMode(a)); }
+  function needDocs(a) { return docSlots(a).length; }
+  function typeLabel(a) { return docMode(a) === 'spell' ? 'Spelling Correction In Name' : 'Change Of Name'; }
+  function hasDocs(a) { return !!(a.docs && docSlots(a).every(function (s) { return a.docs[s]; })); }
   function appliedAt(a) { return a.appliedAt || a.addedAt || Date.now(); }
   function deadline(a) {
     // MSEDCL asks for documents within 3 days of applying
     if (a.status !== 'pending') return null;
-    if (a.docsUploaded && a.docsUploaded > 0) return null;
+    if (a.docsUploaded != null && a.docsUploaded >= needDocs(a)) return null;   // 1 PDF is enough for a spelling correction
     var end = appliedAt(a) + 3 * DAY;
     return { end: end, left: end - Date.now() };
   }
@@ -152,7 +158,7 @@
   /* Best effort automatic re-upload through the public upload page (ASP.NET postback).
    * Not verified against a real rejected application; reports failure clearly. */
   async function reupload(a, parsed) {
-    var ev = [{ title: 'Re-Uploading Document - ' + a.id, body: 'Uploading Agreement And Form X Again' }];
+    var ev = [{ title: 'Re-Uploading Document - ' + a.id, body: (docMode(a) === 'spell' ? 'Uploading The Correction PDF Again' : 'Uploading Agreement And Form X Again') }];
     a.lastReuploadAt = Date.now();
     try {
       var page = await http(P.statusUrl(a.id), { session: 'css' });
@@ -161,11 +167,13 @@
       var fields = P.aspFormFields(page.body);
       var btn = P.uploadButton(page.body);
       if (btn) fields[btn.name] = btn.value;
-      var ag = await Native.call('readDoc', { id: a.id, slot: 'agreement' });
-      var fx = await Native.call('readDoc', { id: a.id, slot: 'formx' });
-      if (!ag || !fx) throw new Error('Saved Documents Missing');
-      var files = [{ field: p.fileInputs[0], name: ag.name, mime: 'application/pdf', b64: ag.b64 }];
-      if (p.fileInputs[1]) files.push({ field: p.fileInputs[1], name: fx.name, mime: 'application/pdf', b64: fx.b64 });
+      var files = [], sl = docSlots(a);
+      for (var i = 0; i < sl.length; i++) {
+        var dd = await Native.call('readDoc', { id: a.id, slot: sl[i] });
+        if (!dd) throw new Error('Saved Documents Missing');
+        if (!p.fileInputs[i]) throw new Error('Upload Form Has No Place For This File');
+        files.push({ field: p.fileInputs[i], name: P.uploadName(dd.name, 'Document', 'pdf'), mime: 'application/pdf', b64: dd.b64 });
+      }
       var post = await http(P.statusUrl(a.id), { method: 'POST', multipart: { fields: fields, files: files }, session: 'css' });
       if (post.status >= 400) throw new Error('Upload Rejected By Site (' + post.status + ')');
       var after = P.parseStatusPage(post.body);
@@ -177,7 +185,7 @@
       applyParsed(a, after);
       a.reuploadState = 'done';
       log('reupload', 'Re-Upload Done - ' + a.id, a.id);
-      ev.push({ title: 'Re-Upload Done - ' + a.id, body: 'Both Documents Uploaded Again' });
+      ev.push({ title: 'Re-Upload Done - ' + a.id, body: docMode(a) === 'spell' ? 'Correction PDF Uploaded Again' : 'Both Documents Uploaded Again' });
     } catch (e) {
       a.reuploadState = 'failed'; a.reuploadError = e.message;
       log('reupload-failed', 'Re-Upload Failed - ' + a.id + ': ' + e.message, a.id);
@@ -225,7 +233,7 @@
     var docs = {};
     for (var i = 0; i < state.apps.length; i++) {
       var a = state.apps[i];
-      for (var slot of ['agreement', 'formx']) {
+      for (var slot of ['agreement', 'formx', 'single']) {
         if (a.docs && a.docs[slot]) {
           var d = await Native.call('readDoc', { id: a.id, slot: slot }).catch(function () { return null; });
           if (d) { docs[a.id] = docs[a.id] || {}; docs[a.id][slot] = d; }
@@ -256,7 +264,7 @@
 
   window.VS = {
     get state() { return state; }, load: load, save: save, changed: changed, onChange: onChange, log: log,
-    findApp: findApp, upsertApp: upsertApp, removeApp: removeApp, hasDocs: hasDocs, deadline: deadline, stats: stats,
+    findApp: findApp, upsertApp: upsertApp, removeApp: removeApp, hasDocs: hasDocs, deadline: deadline, docMode: docMode, docSlots: docSlots, needDocs: needDocs, typeLabel: typeLabel, OLD_TEMPLATE: OLD_TEMPLATE, stats: stats,
     fetchStatus: fetchStatus, fetchBill: fetchBill, applyParsed: applyParsed, checkApp: checkApp, reupload: reupload,
     syncAll: syncAll, schedule: schedule, sha: sha, exportBackup: exportBackup, importBackup: importBackup, wipeAll: wipeAll,
     DEFAULT_TEMPLATE: DEFAULT_TEMPLATE, UA: UA, DAY: DAY

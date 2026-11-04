@@ -8,7 +8,7 @@
   var REPO_API = 'https://api.github.com/repos/FilmyFather/vidyutsewa/releases/latest';
   var LOGIN_URL = 'https://wss.mahadiscom.in/wss/wss?uiActionName=getCustAccountLogin';
   var BILL_SITE = 'https://wss.mahadiscom.in/wss/wss?uiActionName=getViewPayBill';
-  var VERSION = '1.0.0';
+  var VERSION = '1.0.1';
   var DISCLAIMER = 'Independent Helper App. Not Affiliated With Or Endorsed By MSEDCL. All Applications Are Submitted And Paid On The Official MSEDCL Website.';
   var THEMES = [
     ['royal', 'Royal Electric', ['#0B1744', '#22D3EE', '#3B82F6']],
@@ -152,12 +152,24 @@
     });
   }
   UI.pickFiles = pickFiles;
+  function slotLabel(slot) { return slot === 'agreement' ? t('Agreement') : slot === 'formx' ? 'Form X' : t('Correction PDF'); }
+  function slotKey(slot) { return slot === 'agreement' ? 'Agreement' : slot === 'formx' ? 'FormX' : 'SpellingCorrection'; }
+  function modeBox(holder, fn) {   // the clear choice: 1 PDF (spelling correction) or 2 PDFs (normal)
+    var m = holder.mode === 'spell' ? 'spell' : 'normal';
+    function opt(key, title, sub) {
+      var on = m === key;
+      return '<div class="card modecard ' + (on ? 'sel' : '') + '" style="margin:0" onclick="' + fn + '(\'' + key + '\')"><div class="grow"><b>' + title + '</b><div class="tiny muted">' + sub + '</div></div>' + (on ? icon('check', 20, ' style="stroke:var(--acc)"') : '') + '</div>';
+    }
+    return '<div class="field" id="mode-seg"><label>' + t('Application Type') + '</label><div style="display:flex;flex-direction:column;gap:8px">' +
+      opt('normal', t('Normal - Agreement + Form X'), t('Agreement And Form X Are Both Mandatory.')) +
+      opt('spell', t('Spelling Correction - 1 PDF'), t('Only One PDF Is Uploaded When The Reason Is A Spelling Correction.')) + '</div></div>';
+  }
   async function processInto(holder, slot, file, rerender) {
     holder[slot] = { busy: true, origName: file.name };
     rerender();
     try {
-      var r = await D.process(file, { quality: S().settings.quality });
-      holder[slot] = { bytes: r.bytes, size: r.size, origSize: r.origSize, compressed: r.compressed, origName: file.name, name: slot === 'agreement' ? 'Agreement' : 'FormX', skipped: r.skipped || 0 };
+      var r = await D.process(file, {});
+      holder[slot] = { bytes: r.bytes, size: r.size, origSize: r.origSize, compressed: r.compressed, origName: file.name, name: slotKey(slot), skipped: r.skipped || 0, wrapped: !!r.wrapped };
       holder[slot].thumb = await D.thumb(r.bytes, 220);
     } catch (e) { holder[slot] = { err: e.message || String(e), origName: file.name }; }
     rerender();
@@ -166,8 +178,8 @@
     var holder = UI[holderName].docs;
     var files = await pickFiles(kind, false);
     if (!files.length) return;
-    var f = files[0], g = P.guessSlot(f.name);
-    if (g && g !== slot && !holder[g]) { toast(t('Name Looks Like') + ' ' + (g === 'formx' ? 'Form X' : t('Agreement')) + ' \u2192 ' + t('Placed There')); slot = g; }
+    var f = files[0], g = slot === 'single' ? '' : P.guessSlot(f.name);
+    if (g && g !== slot && !holder[g]) { toast(t('Name Looks Like') + ' ' + slotLabel(g) + ' \u2192 ' + t('Placed There')); slot = g; }
     processInto(holder, slot, f, function () { render(true); });
   };
   UI.pickBoth = async function (holderName) {
@@ -182,11 +194,11 @@
   };
   UI.swap = function (holderName) { var h = UI[holderName].docs, a = h.agreement; h.agreement = h.formx; h.formx = a; ['agreement', 'formx'].forEach(function (s) { if (h[s]) h[s].name = s === 'agreement' ? 'Agreement' : 'FormX'; }); if (!h.agreement) delete h.agreement; if (!h.formx) delete h.formx; render(true); toast(t('Swapped')); };
   UI.clearSlot = function (holderName, slot) { delete UI[holderName].docs[slot]; render(true); };
-  UI.previewDraft = function (holderName, slot) { var d = UI[holderName].docs[slot]; if (d && d.bytes) UI.preview(null, null, d.bytes, slot === 'agreement' ? t('Agreement') : 'Form X'); };
+  UI.previewDraft = function (holderName, slot) { var d = UI[holderName].docs[slot]; if (d && d.bytes) UI.preview(null, null, d.bytes, slotLabel(slot)); };
 
   function slotHtml(holderName, slot) {
-    var d = UI[holderName].docs[slot], label = slot === 'agreement' ? t('Agreement') : 'Form X';
-    var hint = slot === 'agreement' ? t('Sale Deed / Agreement / Ownership Proof') : t('Form X Signed By Old Consumer');
+    var d = UI[holderName].docs[slot], label = slotLabel(slot);
+    var hint = slot === 'agreement' ? t('Sale Deed / Agreement / Ownership Proof') : slot === 'formx' ? t('Form X Signed By Old Consumer') : t('The One PDF For A Spelling Correction');
     var head = '<div class="row between"><div class="row">' + icon('file', 18, ' style="stroke:var(--acc)"') + '<div><b style="font-size:14px">' + label + '</b><div class="tiny muted">' + hint + '</div></div></div>';
     var hn = "'" + holderName + "','" + slot + "'";
     if (!d) return '<div class="slot">' + head + '<span class="chip c-c">' + t('Required') + '</span></div>' +
@@ -199,25 +211,26 @@
     return '<div class="slot done">' + head + '<span class="chip c-a">' + icon('check', 12) + ' ' + t('Ready') + '</span></div>' +
       '<div class="row"><div class="thumb" style="background-image:url(' + (d.thumb || '') + ')" onclick="UI.previewDraft(' + hn + ')"></div>' +
       '<div class="grow"><div class="small ell"><b>' + esc(d.name) + '.pdf</b></div><div class="tiny muted ell">' + esc(d.origName || '') + '</div>' +
-      '<div class="small">' + (d.compressed ? D.fmtSize(d.origSize) + ' \u2192 <b class="acc">' + D.fmtSize(d.size) + '</b>' : '<b class="acc">' + D.fmtSize(d.size) + '</b> \u2022 ' + t('Already Under 300 KB')) + '</div>' +
+      '<div class="small">' + (d.compressed ? D.fmtSize(d.origSize) + ' \u2192 <b class="acc">' + D.fmtSize(d.size) + '</b>' : '<b class="acc">' + D.fmtSize(d.size) + '</b> \u2022 ' + t('Not Compressed (Up To 1 MB)')) + '</div>' +
       (d.skipped ? '<div class="tiny" style="color:var(--cr)">' + t('Only First 12 Pages Kept') + '</div>' : '') +
       '<div class="row" style="margin-top:4px"><button class="btn ghost sm" onclick="UI.previewDraft(' + hn + ')">' + icon('eye', 14) + t('Preview') + '</button>' +
       '<button class="btn ghost sm" onclick="UI.clearSlot(' + hn + ')">' + icon('refresh', 14) + t('Change') + '</button></div></div></div></div>';
   }
   function docsBlock(holderName) {
-    var h = UI[holderName].docs;
+    var H = UI[holderName], h = H.docs, spell = H.mode === 'spell';
+    var note = '<div class="tiny muted" style="text-align:center">' + t('Files Up To 1 MB Are Not Compressed. Bigger Files Are Gently Compressed To Under 1 MB. File Names Have No Spaces.') + '</div>';
+    if (spell) return slotHtml(holderName, 'single') + note;
     return '<button class="btn out sm" style="width:100%" onclick="UI.pickBoth(\'' + holderName + '\')">' + icon('sparkle', 16) + t('Pick Both Files (Auto Detect By Name)') + '</button>' +
       slotHtml(holderName, 'agreement') +
       '<div class="row" style="justify-content:center"><button class="btn ghost sm" onclick="UI.swap(\'' + holderName + '\')" ' + (h.agreement || h.formx ? '' : 'disabled') + '>' + icon('swap', 16) + t('Swap') + '</button></div>' +
-      slotHtml(holderName, 'formx') +
-      '<div class="tiny muted" style="text-align:center">' + t('Any Size Allowed. Compressed Once On This Device To Under 300 KB (PDF). File Names Have No Spaces.') + '</div>';
+      slotHtml(holderName, 'formx') + note;
   }
-  function docsReady(h) { return h.agreement && h.agreement.bytes && h.formx && h.formx.bytes; }
-  async function saveDocsTo(id, h) {
+  function docsReady(H) { var h = H.docs, ok = function (s) { return h[s] && h[s].bytes; }; return H.mode === 'spell' ? !!ok('single') : !!(ok('agreement') && ok('formx')); }
+  async function saveDocsTo(id, h, mode) {
     var out = {};
-    for (var slot of ['agreement', 'formx']) {
+    for (var slot of P.docSlots(mode)) {
       var d = h[slot];
-      var name = (slot === 'agreement' ? 'Agreement_' : 'FormX_') + id + '.pdf';
+      var name = P.docName(id, slot);   // clean name: letters, digits, _ and - only
       var r = await Native.call('saveDoc', { id: id, slot: slot, name: name, b64: D.b64FromBytes(d.bytes) });
       out[slot] = { name: name, size: d.size, origSize: d.origSize, at: Date.now() };
     }
@@ -342,7 +355,7 @@
     var shop = S().settings.mode === 'shop', bad = a.status === 'rejected';
     var steps = [
       { k: 'Application Submitted', done: true, sub: a.applicationDate || fmtDate(a.appliedAt || a.addedAt) },
-      { k: 'Documents Uploaded', done: a.docsUploaded > 0, sub: a.docsUploaded != null ? a.docsUploaded + ' ' + t('Documents On Official Site') : t('Not Checked Yet') },
+      { k: 'Documents Uploaded', done: a.docsUploaded >= VS.needDocs(a), sub: a.docsUploaded != null ? a.docsUploaded + ' ' + t('Documents On Official Site') : t('Not Checked Yet') },
       { k: 'Fee Paid', done: !!a.receiptNo, sub: a.receiptNo ? t('Receipt') + ' ' + a.receiptNo : t('Pending') },
       { k: bad ? 'Rejected' : 'Approved', done: a.status === 'approved', bad: bad, sub: a.status === 'approved' ? fmtDate(a.approvedAt) : (bad ? (a.rawStatus || '') : t('Waiting')) }
     ];
@@ -362,11 +375,13 @@
       '<div class="row between" style="margin-top:6px"><span class="muted small">' + t('Receipt No') + '</span><b class="mono small">' + esc(a.receiptNo || '-') + '</b></div>' +
       (a.receiptDate ? '<div class="row between" style="margin-top:6px"><span class="muted small">' + t('Receipt Date') + '</span><span class="small">' + esc(a.receiptDate) + '</span></div>' : '') +
       (shop ? '<div class="row between" style="margin-top:6px"><span class="muted small">' + t('Service Fee') + '</span><b class="acc">\u20B9' + esc(a.serviceFee || 0) + '</b></div>' : '') + '</div>';
-    body += '<div class="sec">' + t('Saved PDFs') + '</div><div class="card" style="padding:4px 12px">';
+    body += '<div class="sec">' + t('Saved PDFs') + '</div><div class="card" style="padding:4px 12px">' +
+      '<div class="row between" style="padding:8px 0;border-bottom:1px solid var(--bd)"><div><div class="tiny muted">' + t('Application Type') + '</div><b class="small">' + (VS.docMode(a) === 'spell' ? t('Spelling Correction - 1 PDF') : t('Normal - Agreement + Form X')) + '</b></div>' +
+      '<button class="btn ghost sm" onclick="UI.toggleType(\'' + a.id + '\')">' + icon('swap', 14) + t('Change Type') + '</button></div>';
     if (a.docsDeleted && !VS.hasDocs(a)) body += '<div class="list-item small muted">' + icon('trash', 16) + ' ' + t('Deleted Permanently After Approval') + '</div>';
-    else ['agreement', 'formx'].forEach(function (slot) {
+    else VS.docSlots(a).forEach(function (slot) {
       var d = a.docs && a.docs[slot];
-      body += '<div class="list-item"><div class="ico">' + icon('file', 17) + '</div><div class="grow"><div class="small ell"><b>' + (d ? esc(d.name) : (slot === 'agreement' ? t('Agreement') : 'Form X')) + '</b></div><div class="tiny muted">' + (d ? D.fmtSize(d.size) : t('Not Saved')) + '</div></div>' +
+      body += '<div class="list-item"><div class="ico">' + icon('file', 17) + '</div><div class="grow"><div class="small ell"><b>' + (d ? esc(d.name) : slotLabel(slot)) + '</b></div><div class="tiny muted">' + (d ? D.fmtSize(d.size) : t('Not Saved')) + '</div></div>' +
         (d ? '<button class="btn ghost sm" onclick="UI.preview(\'' + a.id + '\',\'' + slot + '\',null,\'' + esc(d.name) + '\')">' + icon('eye', 14) + '</button>' : '') +
         '<button class="btn ghost sm" onclick="UI.replaceDoc(\'' + a.id + '\',\'' + slot + '\')">' + icon(d ? 'refresh' : 'plus', 14) + '</button></div>';
     });
@@ -386,12 +401,18 @@
     } catch (e) { toast(t('Could Not Check') + ': ' + e.message); }
     VS.changed(); render(true);
   };
+  UI.toggleType = async function (id) {
+    var a = VS.findApp(id), to = VS.docMode(a) === 'spell' ? 'normal' : 'spell';
+    var msg = to === 'spell' ? t('Only One PDF Will Be Needed. Saved Agreement And Form X Stay In The Vault Until You Delete Them.') : t('Agreement And Form X Will Both Be Needed. Add The Missing Ones.');
+    if (!(await confirmBox(t('Change Application Type?'), msg, t('Change')))) return;
+    a.docMode = to; VS.log('type', 'Type Changed - ' + a.id, a.id); VS.changed(); render(true);
+  };
   UI.replaceDoc = async function (id, slot) {
     var files = await pickFiles('files', false); if (!files.length) return;
     toast(t('Compressing') + '\u2026');
     try {
-      var r = await D.process(files[0], { quality: S().settings.quality });
-      var a = VS.findApp(id), name = (slot === 'agreement' ? 'Agreement_' : 'FormX_') + id + '.pdf';
+      var r = await D.process(files[0], {});
+      var a = VS.findApp(id), name = P.docName(id, slot);
       await Native.call('saveDoc', { id: id, slot: slot, name: name, b64: D.b64FromBytes(r.bytes) });
       a.docs = a.docs || {}; a.docs[slot] = { name: name, size: r.size, origSize: r.origSize, at: Date.now() }; a.docsDeleted = false;
       VS.changed(); render(true); toast(t('Saved') + ' ' + D.fmtSize(r.size));
@@ -399,7 +420,7 @@
   };
   UI.reupload = function (id) {
     var a = VS.findApp(id);
-    sheet('<h3>' + t('Re-Upload Documents') + '</h3><div class="small muted">' + t('The Official Upload Page Opens Inside The App. When It Asks For A File, Your Saved Agreement And Form X Are Offered First.') + '</div>' +
+    sheet('<h3>' + t('Re-Upload Documents') + '</h3><div class="small muted">' + (VS.docMode(a) === 'spell' ? t('The Official Upload Page Opens Inside The App. When It Asks For A File, Your Saved Correction PDF Is Offered First.') : t('The Official Upload Page Opens Inside The App. When It Asks For A File, Your Saved Agreement And Form X Are Offered First.')) + '</div>' +
       '<button class="btn pri" onclick="UI.closeSheet();UI.official(\'' + P.statusUrl(id) + '\',\'' + id + '\')">' + icon('ext', 17) + t('Open Upload Page') + '</button>' +
       (VS.hasDocs(a) ? '<button class="btn ghost" onclick="UI.autoUp(\'' + id + '\')">' + icon('zap', 17) + t('Try Automatic Re-Upload') + '</button><div class="tiny muted">' + t('Automatic Re-Upload Is Experimental And May Need The Official Page.') + '</div>' : ''));
   };
@@ -415,7 +436,8 @@
   };
   UI.shareApp = function (id) {
     var a = VS.findApp(id), s = S().settings;
-    var text = P.fillTemplate(s.waTemplate || VS.DEFAULT_TEMPLATE, { name: titleCase(a.newName) || '', id: a.id, shopName: s.shopName || 'VidyutSewa', consumerNo: a.consumerNo, status: a.rawStatus });
+    var tpl = (!s.waTemplate || s.waTemplate === VS.OLD_TEMPLATE) ? VS.DEFAULT_TEMPLATE : s.waTemplate;
+    var text = P.fillTemplate(tpl, { type: t(VS.typeLabel(a)), name: titleCase(a.newName) || '', id: a.id, shopName: s.shopName || 'VidyutSewa', consumerNo: a.consumerNo, status: a.rawStatus });
     Native.call('share', { text: text, whatsapp: true, phone: a.mobile || '' }).then(function (r) { if (r && r.note) toast(r.note, 4500); }).catch(function (e) { toast(e.message); });
   };
   UI.officialStatus = function (id) { UI.official(P.statusUrl(id), id); };
@@ -444,10 +466,13 @@
 
   /* ---------- NEW APPLICATION ---------- */
   UI.newApp = function () {
-    UI.draft = UI.draft && !UI.draft.saved ? UI.draft : { step: 1, name: '', cno: '', mobile: '', fee: S().settings.fee, checks: {}, docs: {}, appId: '' };
+    UI.draft = UI.draft && !UI.draft.saved ? UI.draft : { step: 1, mode: 'normal', name: '', cno: '', mobile: '', fee: S().settings.fee, checks: {}, docs: {}, appId: '' };
     UI.go('newapp');
   };
   var CHECKS = ['Agreement / Ownership Proof Ready', 'Form X Signed By Old Consumer', 'Registered Mobile Available For OTP', 'WSS Login Name And Password Ready (Or Register First)'];
+  var CHECKS_SPELL = ['Spelling Correction PDF Ready', 'Registered Mobile Available For OTP', 'WSS Login Name And Password Ready (Or Register First)'];
+  function checksFor(mode) { return mode === 'spell' ? CHECKS_SPELL : CHECKS; }
+  UI.setDraftMode = function (m) { readNa1(); UI.draft.mode = m; UI.draft.checks = {}; render(true); };
   screens.newapp = function () {
     var d = UI.draft, shop = S().settings.mode === 'shop';
     var body = '<div class="steps">' + [1, 2, 3].map(function (i) { return '<i class="' + (d.step >= i ? 'on' : '') + '"></i>'; }).join('') + '</div>';
@@ -457,15 +482,17 @@
         '<div class="field"><label>' + t('Consumer Number (12 Digits)') + '</label><input class="inp mono" id="na-cno" inputmode="numeric" maxlength="12" value="' + esc(d.cno) + '"></div>' +
         '<div class="field"><label>' + t('Customer Mobile (For WhatsApp, Optional)') + '</label><input class="inp mono" id="na-mob" inputmode="tel" maxlength="10" value="' + esc(d.mobile) + '"></div>' +
         (shop ? '<div class="field"><label>' + t('Service Fee (\u20B9)') + '</label><input class="inp" id="na-fee" inputmode="numeric" value="' + esc(d.fee) + '"></div>' : '') +
-        '<div class="card">' + CHECKS.map(function (c, i) { return '<div class="check ' + (d.checks[i] ? 'on' : '') + '" onclick="UI.toggleCheck(' + i + ')"><span class="box">' + (d.checks[i] ? icon('check', 14) : '') + '</span><span>' + t(c) + '</span></div>'; }).join('') + '</div>' +
+        modeBox(d, 'UI.setDraftMode') +
+        '<div class="card">' + checksFor(d.mode).map(function (c, i) { return '<div class="check ' + (d.checks[i] ? 'on' : '') + '" onclick="UI.toggleCheck(' + i + ')"><span class="box">' + (d.checks[i] ? icon('check', 14) : '') + '</span><span>' + t(c) + '</span></div>'; }).join('') + '</div>' +
         '<button class="btn pri" onclick="UI.naNext1()">' + t('Next: Documents') + ' ' + icon('right', 18) + '</button>';
     } else if (d.step === 2) {
       body += '<div class="sec">' + t('Step 2: Documents') + '</div>' + docsBlock('draft') +
-        '<div class="btns2"><button class="btn out" onclick="UI.draft.step=1;UI.render()">' + icon('back', 17) + t('Back') + '</button><button class="btn pri" ' + (docsReady(d.docs) ? '' : 'disabled') + ' onclick="UI.naConfirmDocs()">' + t('Confirm') + ' ' + icon('check', 17) + '</button></div>';
+        '<div class="btns2"><button class="btn out" onclick="UI.draft.step=1;UI.render()">' + icon('back', 17) + t('Back') + '</button><button class="btn pri" ' + (docsReady(d) ? '' : 'disabled') + ' onclick="UI.naConfirmDocs()">' + t('Confirm') + ' ' + icon('check', 17) + '</button></div>';
     } else {
       body += '<div class="sec">' + t('Step 3: Apply On Official Site') + '</div>' +
         '<div class="card"><div class="kv">' + t('New Consumer Name') + ': <b>' + esc(d.name || '-') + '</b></div><div class="kv">' + t('Consumer No') + ': <b class="mono">' + esc(d.cno || '-') + '</b></div>' +
-        '<div class="kv">' + t('Documents') + ': <b>' + t('Agreement') + ' ' + D.fmtSize(d.docs.agreement.size) + ' \u2022 Form X ' + D.fmtSize(d.docs.formx.size) + '</b></div></div>' +
+        '<div class="kv">' + t('Type') + ': <b>' + (d.mode === 'spell' ? t('Spelling Correction - 1 PDF') : t('Normal - Agreement + Form X')) + '</b></div>' +
+        '<div class="kv">' + t('Documents') + ': <b>' + (d.mode === 'spell' ? t('Correction PDF') + ' ' + D.fmtSize(d.docs.single.size) : t('Agreement') + ' ' + D.fmtSize(d.docs.agreement.size) + ' \u2022 Form X ' + D.fmtSize(d.docs.formx.size)) + '</b></div></div>' +
         '<div class="card small"><b>' + t('On The Official Site') + ':</b><div class="muted" style="margin-top:4px;line-height:1.6">1. ' + t('Login (Login Name, Password, Captcha, OTP)') + '<br>2. ' + t('My Account \u2192 Select Consumer \u2192 Change Of Name') + '<br>3. ' + t('Fill New Name, Reason, OTP \u2192 Submit') + '<br>4. ' + t('Note The Application ID (The App Tries To Catch It)') + '<br>5. ' + t('Upload Documents (Your Saved PDFs Are Offered) And Pay Fee') + '</div>' +
         '<div class="tiny acc" style="margin-top:6px">' + t('You Type Captcha And OTP Yourself. Payment Happens Only On The Official Site.') + '</div></div>' +
         '<button class="btn pri" onclick="UI.naOpenSite()">' + icon('ext', 18) + t('Open Official Site To Apply') + '</button>' +
@@ -484,13 +511,14 @@
   UI.naNext1 = function () {
     readNa1(); var d = UI.draft;
     if (d.cno && !P.validConsumerNo(d.cno)) return toast(t('Consumer Number Must Be 12 Digits'));
-    if (CHECKS.some(function (c, i) { return !d.checks[i]; })) toast(t('Tip: Keep All Checklist Items Ready Before Applying'), 3000);
+    if (checksFor(d.mode).some(function (c, i) { return !d.checks[i]; })) toast(t('Tip: Keep All Checklist Items Ready Before Applying'), 3000);
     d.step = 2; render();
   };
   UI.naConfirmDocs = async function () {
     var d = UI.draft;
-    if (!(await confirmBox(t('Confirm Documents'), t('Agreement') + ': ' + D.fmtSize(d.docs.agreement.size) + '<br>Form X: ' + D.fmtSize(d.docs.formx.size) + '<br><br>' + t('Are Both Files Correct And Readable?'), t('Yes, Correct')))) return;
-    try { await saveDocsTo('draft', d.docs); } catch (e) { return toast(e.message); }
+    var spell = d.mode === 'spell';
+    if (!(await confirmBox(t('Confirm Documents'), (spell ? t('Correction PDF') + ': ' + D.fmtSize(d.docs.single.size) + '<br><br>' + t('Is The File Correct And Readable?') : t('Agreement') + ': ' + D.fmtSize(d.docs.agreement.size) + '<br>Form X: ' + D.fmtSize(d.docs.formx.size) + '<br><br>' + t('Are Both Files Correct And Readable?')), t('Yes, Correct')))) return;
+    try { await saveDocsTo('draft', d.docs, d.mode); } catch (e) { return toast(e.message); }
     d.step = 3; render();
   };
   UI.naOpenSite = function () { var e = $('#na-id'); if (e) UI.draft.appId = e.value.trim(); UI.official(LOGIN_URL, 'draft', 'apply'); };
@@ -499,10 +527,10 @@
     if (!P.validAppId(d.appId)) return toast(t('Enter The 8-Digit Application ID'));
     if (VS.findApp(d.appId) && !(await confirmBox(t('Already Saved'), t('This Application ID Is Already In The App. Replace It?'), t('Replace')))) return;
     try {
-      var docs = await saveDocsTo(d.appId, d.docs);
+      var docs = await saveDocsTo(d.appId, d.docs, d.mode);
       await Native.call('deleteDocs', { id: 'draft' }).catch(function () {});
       var a = { id: d.appId, newName: d.name.toUpperCase(), consumerNo: d.cno, mobile: d.mobile, status: 'pending', rawStatus: '', addedAt: Date.now(), appliedAt: Date.now(),
-        serviceFee: S().settings.mode === 'shop' ? d.fee : 0, docs: docs, history: [{ t: Date.now(), text: 'Saved In App' }], source: 'new' };
+        serviceFee: S().settings.mode === 'shop' ? d.fee : 0, docs: docs, docMode: d.mode === 'spell' ? 'spell' : 'normal', history: [{ t: Date.now(), text: 'Saved In App' }], source: 'new' };
       VS.upsertApp(a); VS.log('added', 'New Application Saved - ' + a.id, a.id); VS.changed();
       d.saved = true; UI.draft = null;
       UI.stack = []; UI.route = 'detail'; UI.params = { id: a.id }; render();
@@ -512,7 +540,7 @@
   };
 
   /* ---------- ADD OLD APPLICATION ---------- */
-  UI.addOld = function () { UI.old = { id: '', ver: null, docs: {}, mobile: '', fee: S().settings.fee }; UI.go('addold'); };
+  UI.addOld = function () { UI.old = { id: '', ver: null, mode: 'normal', docs: {}, mobile: '', fee: S().settings.fee }; UI.go('addold'); };
   screens.addold = function () {
     var o = UI.old, shop = S().settings.mode === 'shop', v = o.ver;
     var body = '<div class="field"><label>' + t('Application ID (8 Digits)') + '</label><div class="inprow"><input class="inp mono" id="ao-id" inputmode="numeric" maxlength="8" value="' + esc(o.id) + '" placeholder="12345678"><button class="btn pri sm" id="ao-v" onclick="UI.verifyOld()" style="min-width:96px">' + t('Verify') + '</button></div></div>';
@@ -523,11 +551,12 @@
         '<div class="tiny acc" style="margin-top:6px">' + esc(v.rawStatus) + '</div></div>' +
         '<div class="field"><label>' + t('Customer Mobile (For WhatsApp, Optional)') + '</label><input class="inp mono" id="ao-mob" inputmode="tel" maxlength="10" value="' + esc(o.mobile || v.mobile || '') + '"></div>' +
         (shop ? '<div class="field"><label>' + t('Service Fee (\u20B9)') + '</label><input class="inp" id="ao-fee" inputmode="numeric" value="' + esc(o.fee) + '"></div>' : '') +
-        '<div class="sec">' + t('Both PDFs Are Mandatory') + '</div>' + docsBlock('old') +
-        '<button class="btn pri" ' + (docsReady(o.docs) ? '' : 'disabled') + ' onclick="UI.saveOld()">' + icon('check', 18) + t('Save Application') + '</button>';
+        modeBox(o, 'UI.setOldMode') + '<div class="sec">' + (o.mode === 'spell' ? t('One PDF Is Mandatory') : t('Both PDFs Are Mandatory')) + '</div>' + docsBlock('old') +
+        '<button class="btn pri" ' + (docsReady(o) ? '' : 'disabled') + ' onclick="UI.saveOld()">' + icon('check', 18) + t('Save Application') + '</button>';
     } else body += '<div class="card small muted">' + t('Enter An Application ID You Already Applied For. The App Reads Its Status From The Official Site, Then You Attach Both PDFs So It Can Re-Upload If Needed.') + '</div>';
     return page(hdrBack(t('Add Old Application')), body, false);
   };
+  UI.setOldMode = function (m) { var mm = $('#ao-mob'), ff = $('#ao-fee'); if (mm) UI.old.mobile = mm.value; if (ff) UI.old.fee = ff.value; UI.old.mode = m; render(true); };
   UI.verifyOld = async function () {
     var o = UI.old; o.id = ($('#ao-id').value || '').trim();
     if (!P.validAppId(o.id)) return toast(t('Enter The 8-Digit Application ID'));
@@ -535,18 +564,18 @@
     try {
       var p = await VS.fetchStatus(o.id);
       if (!p.found) { o.ver = null; toast(t('Application Not Found On Official Site')); }
-      else o.ver = p;
+      else { o.ver = p; if (/spell|correct/i.test(p.reason || '')) o.mode = 'spell'; }   // the site's own reason pre-selects the type; the choice stays visible
     } catch (e) { toast(t('Could Not Reach Official Site') + ': ' + e.message); }
     render(true);
   };
   UI.saveOld = async function () {
     var o = UI.old, v = o.ver, m = $('#ao-mob'), f = $('#ao-fee');
-    if (!docsReady(o.docs)) return toast(t('Attach Both PDFs First'));
+    if (!docsReady(o)) return toast(o.mode === 'spell' ? t('Attach The PDF First') : t('Attach Both PDFs First'));
     try {
       var id = v.applicationId || o.id;
-      var docs = await saveDocsTo(id, o.docs);
+      var docs = await saveDocsTo(id, o.docs, o.mode);
       var a = { id: id, status: v.status, addedAt: Date.now(), lastChecked: Date.now(), mobile: m ? m.value.replace(/\D/g, '') : '',
-        serviceFee: S().settings.mode === 'shop' && f ? (parseInt(f.value, 10) || 0) : 0, docs: docs, history: [{ t: Date.now(), text: v.rawStatus || 'Added' }], source: 'old' };
+        serviceFee: S().settings.mode === 'shop' && f ? (parseInt(f.value, 10) || 0) : 0, docs: docs, docMode: o.mode === 'spell' ? 'spell' : 'normal', history: [{ t: Date.now(), text: v.rawStatus || 'Added' }], source: 'old' };
       VS.applyParsed(a, v); if (!a.appliedAt) a.appliedAt = Date.now();
       if (!a.mobile && v.mobile) a.mobile = v.mobile;
       VS.upsertApp(a); VS.log('added', 'Old Application Added - ' + a.id, a.id); VS.changed();
@@ -614,14 +643,14 @@
 
   /* ---------- DOCUMENTS VAULT ---------- */
   screens.docs = function () {
-    var withDocs = S().apps.filter(function (a) { return a.docs && (a.docs.agreement || a.docs.formx); });
-    var total = 0; withDocs.forEach(function (a) { ['agreement', 'formx'].forEach(function (s) { if (a.docs[s]) total += a.docs[s].size || 0; }); });
+    var withDocs = S().apps.filter(function (a) { return a.docs && (a.docs.agreement || a.docs.formx || a.docs.single); });
+    var total = 0; withDocs.forEach(function (a) { ['agreement', 'formx', 'single'].forEach(function (s) { if (a.docs[s]) total += a.docs[s].size || 0; }); });
     var body = '<div class="card row between"><div class="row"><div class="ico">' + icon('shield', 18) + '</div><div><b>' + withDocs.length + ' ' + t('Folders') + '</b><div class="tiny muted">' + D.fmtSize(total) + ' \u2022 ' + t('Stored Only On This Device') + '</div></div></div></div>' +
       (S().settings.autoDelete ? '<div class="warn">' + icon('info', 16) + '<div>' + t('PDFs Are Deleted Permanently When An Application Is Approved.') + '</div></div>' : '');
     body += withDocs.length ? withDocs.map(function (a) {
-      return '<div class="card"><div class="row between" onclick="UI.go(\'detail\',{id:\'' + a.id + '\'})" style="cursor:pointer"><div class="row">' + icon('folder', 20, ' style="stroke:var(--acc)"') + '<div><b class="mono">' + a.id + '</b><div class="tiny muted ell">' + esc(titleCase(a.newName) || '') + '</div></div></div>' + chip(a.status) + '</div>' +
-        ['agreement', 'formx'].map(function (s) {
-          var d = a.docs[s]; if (!d) return '';
+      return '<div class="card"><div class="row between" onclick="UI.go(\'detail\',{id:\'' + a.id + '\'})" style="cursor:pointer"><div class="row">' + icon('folder', 20, ' style="stroke:var(--acc)"') + '<div><b class="mono">' + a.id + '</b><div class="tiny muted ell">' + esc(titleCase(a.newName) || '') + ' \u2022 ' + (VS.docMode(a) === 'spell' ? t('Spelling Correction - 1 PDF') : t('Normal - Agreement + Form X')) + '</div></div></div>' + chip(a.status) + '</div>' +
+        VS.docSlots(a).map(function (s) {
+          var d = a.docs[s]; if (!d) return '<div class="list-item"><div class="ico">' + icon('file', 16) + '</div><div class="grow"><div class="small muted">' + slotLabel(s) + ' - ' + t('Not Saved') + '</div></div></div>';
           return '<div class="list-item"><div class="ico">' + icon('file', 16) + '</div><div class="grow"><div class="small ell">' + esc(d.name) + '</div><div class="tiny muted">' + D.fmtSize(d.size) + (d.origSize && d.origSize !== d.size ? ' (' + t('From') + ' ' + D.fmtSize(d.origSize) + ')' : '') + '</div></div>' +
             '<button class="btn ghost sm" onclick="UI.preview(\'' + a.id + '\',\'' + s + '\',null,\'' + esc(d.name) + '\')">' + icon('eye', 14) + '</button><button class="btn ghost sm" onclick="UI.shareDoc(\'' + a.id + '\',\'' + s + '\')">' + icon('share', 14) + '</button></div>';
         }).join('') +
@@ -633,7 +662,7 @@
     try { var d = await Native.call('readDoc', { id: id, slot: slot }); var shr = await Native.call('share', { files: [{ name: d.name, b64: d.b64, mime: 'application/pdf' }], text: d.name }); if (shr && shr.note) toast(shr.note, 4500); } catch (e) { toast(e.message); }
   };
   UI.delDocs = async function (id) {
-    if (!(await confirmBox(t('Delete PDFs?'), t('Saved Agreement And Form X For This Application Will Be Deleted. Auto Re-Upload Will Not Be Possible.'), t('Delete'), true))) return;
+    if (!(await confirmBox(t('Delete PDFs?'), t('Saved PDFs For This Application Will Be Deleted. Auto Re-Upload Will Not Be Possible.'), t('Delete'), true))) return;
     await Native.call('deleteDocs', { id: id }); var a = VS.findApp(id); a.docs = {}; VS.log('deleted', 'Documents Deleted - ' + id, id); VS.changed(); render(true);
   };
 
@@ -734,7 +763,7 @@
       '<div class="setrow"><div class="lbl"><b>' + t('Check Every') + '</b></div><div style="width:190px">' + seg('interval', [[15, '15 ' + t('Min')], [30, '30 ' + t('Min')], [60, '60 ' + t('Min')]]) + '</div></div>' +
       tog('reminder', '3-Day Upload Reminder', 'Alert Before Document Deadline Ends') + tog('sound', 'Sound') +
       '<div class="setrow"><button class="btn ghost sm" onclick="Native.call(\'notify\',{title:\'Application Approved - 12345678\',body:\'' + t('Test Notification') + '\'})">' + icon('bell', 14) + t('Test Notification') + '</button></div></div>' +
-      '<div class="sethead">' + icon('file', 15) + t('Documents') + '</div><div class="card" style="padding:2px 12px"><div class="setrow"><div class="lbl"><b>' + t('Compression Quality') + '</b><span>' + t('Always Under 300 KB') + '</span></div></div>' + seg('quality', [['high', t('High')], ['balanced', t('Balanced')], ['small', t('Small')]]) +
+      '<div class="sethead">' + icon('file', 15) + t('Documents') + '</div><div class="card" style="padding:2px 12px"><div class="setrow"><div class="lbl"><b>' + t('File Size Rule') + '</b><span>' + t('Up To 1 MB: Kept As It Is. Over 1 MB: Gently Compressed To Under 1 MB.') + '</span></div></div>' +
       tog('autoReupload', 'Auto Re-Upload', 'Upload Saved PDFs Again If Rejected Or 0 Documents') + tog('autoDelete', 'Auto-Delete On Approval', 'Delete PDFs Permanently When Approved') + '</div>' +
       '<div class="sethead">' + icon('lock', 15) + t('Security') + '</div><div class="card" style="padding:2px 12px">' + tog('lock', 'App Lock (PIN)', 'Optional. Off By Default') +
       (andr && s.lock ? tog('bio', 'Fingerprint Unlock') : '') +

@@ -114,7 +114,7 @@
       if (nm) out.fileInputs.push(nm);
     }
     out.hasUploadForm = out.fileInputs.length > 0;
-    var cert = html.match(/<a[^>]*href=["']([^"']+)["'][^>]*>(?:(?!<\/a>)[\s\S])*?(certificate|प्रमाणपत्र)/i);
+    var cert = html.match(/<a[^>]*href=["']([^"']+)["'][^>]*>(?:(?!<\/a>)[\s\S])*?(certificate|\u092a\u094d\u0930\u092e\u093e\u0923\u092a\u0924\u094d\u0930)/i);
     if (cert) out.certificateUrl = absUrl(decodeEntities(cert[1]));
     return out;
   }
@@ -207,12 +207,27 @@
   function findApplicationId(text) {
     var s = clean(text);
     var m = s.match(/application\s*(?:id|no\.?|number)\s*(?:is|:|-)?\s*[:\-]?\s*(\d{8})\b/i) ||
-            s.match(/अर्ज\s*(?:क्रमांक|क्र\.?|आयडी)\s*[:\-]?\s*(\d{8})\b/) ||
+            s.match(/\u0905\u0930\u094d\u091c\s*(?:\u0915\u094d\u0930\u092e\u093e\u0902\u0915|\u0915\u094d\u0930\.?|\u0906\u092f\u0921\u0940)\s*[:\-]?\s*(\d{8})\b/) ||
             s.match(/applicationno=(\d{8})/i);
     return m ? m[1] : '';
   }
 
   /* ---------- Files ---------- */
+  // Upload-safe file name: letters, digits, _ and - plus the extension only (the official page rejects spaces and special characters).
+  function uploadName(name, fallbackBase, fallbackExt) {
+    name = String(name || '');
+    var m = name.match(/\.([A-Za-z0-9]{1,5})$/), ext = (m ? m[1] : (fallbackExt || 'pdf')).toLowerCase();
+    var base = m ? name.slice(0, name.length - m[0].length) : name;
+    base = base.normalize ? base.normalize('NFKD') : base;
+    base = base.replace(/[^A-Za-z0-9_-]+/g, '_').replace(/_{2,}/g, '_').replace(/^[_-]+|[_-]+$/g, '').slice(0, 60);
+    return (base || fallbackBase || 'Document') + '.' + ext;
+  }
+  // how many PDFs an application needs: 'spell' = Spelling Correction (1 PDF), otherwise Agreement + Form X (2 PDFs)
+  function docSlots(mode) { return mode === 'spell' ? ['single'] : ['agreement', 'formx']; }
+  function docName(id, slot) {
+    var base = slot === 'formx' ? 'FormX' : slot === 'single' ? 'SpellingCorrection' : 'Agreement';
+    return uploadName(base + '_' + id + '.pdf', 'Document', 'pdf');
+  }
   function safeFileName(name, fallback) {
     var n = String(name || '').replace(/\.[^.]+$/, '');
     n = n.normalize ? n.normalize('NFKD') : n;
@@ -231,7 +246,7 @@
   function fillTemplate(tpl, d) {
     return String(tpl || '').replace(/\{(\w[\w ]*)\}/g, function (m, k) {
       var key = k.toLowerCase().replace(/\s+/g, '');
-      var map = { name: d.name, id: d.id, shopname: d.shopName, consumerno: d.consumerNo, status: d.status, link: d.link };
+      var map = { name: d.name, id: d.id, shopname: d.shopName, consumerno: d.consumerNo, status: d.status, link: d.link, type: d.type, documents: d.type };
       return map[key] !== undefined && map[key] !== null ? map[key] : m;
     });
   }
@@ -257,7 +272,7 @@
     validConsumerNo: validConsumerNo, validAppId: validAppId, classifyStatus: classifyStatus,
     parseStatusPage: parseStatusPage, statusUrl: statusUrl, aspFormFields: aspFormFields, uploadButton: uploadButton,
     billUrl: billUrl, parseBill: parseBill, yymmLabel: yymmLabel, prevMonths: prevMonths,
-    findApplicationId: findApplicationId, safeFileName: safeFileName, guessSlot: guessSlot, fillTemplate: fillTemplate,
+    findApplicationId: findApplicationId, safeFileName: safeFileName, uploadName: uploadName, docSlots: docSlots, docName: docName, guessSlot: guessSlot, fillTemplate: fillTemplate,
     parseMsedclDate: parseMsedclDate, versionNewer: versionNewer
   };
 });

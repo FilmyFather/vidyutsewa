@@ -40,5 +40,17 @@ class ParserTest {
         assertEquals("11223344", Parser.findApplicationId("x?applicationno=11223344"))
         assertEquals("", Parser.findApplicationId("Consumer No 002233826874"))
     }
+    @Test fun fileNames() {
+        assertEquals("My_Agreement_final_2.pdf", Store.safeName("My Agreement (final) #2.PDF"))
+        assertEquals("photo_12_copy.jpg", Store.safeName("photo 12 & copy.jpg"))
+        assertEquals("Doc.pdf", Store.safeName("%%.pdf", "Doc"))
+        listOf("a b.pdf", "x+y;z`.jpg", "it's q.pdf", "a<b>%.pdf").forEach { assertTrue(it, Regex("^[A-Za-z0-9_-]+\\.[a-z0-9]+$").matches(Store.safeName(it))) }
+        assertEquals("SpellingCorrection_87261272.pdf", Store.docName("87261272", "single"))
+        assertEquals("FormX_87261272.pdf", Store.docName("87261272", "formx"))
+    }
+    @Test fun docSlots() {
+        assertEquals(listOf("single"), Store.slotsFor(org.json.JSONObject().put("docMode", "spell")))
+        assertEquals(listOf("agreement", "formx"), Store.slotsFor(org.json.JSONObject()))
+    }
     @Test fun dates() { assertTrue(Parser.parseDate("31-Oct-26")!! > 0); assertEquals(null, Parser.parseDate("31-ऑक्टो.-26")) }
 }

@@ -103,4 +103,21 @@ t('misc', () => {
   assert.strictEqual(new Date(P.parseMsedclDate('31-Oct-26')).getDate(), 31);
   assert.ok(P.versionNewer('1.0.1', '1.0')); assert.ok(!P.versionNewer('v1.0.0', '1.0'));
 });
+t('upload file names: no spaces or special characters', () => {
+  assert.strictEqual(P.uploadName('My Agreement (final) #2.PDF'), 'My_Agreement_final_2.pdf');
+  assert.strictEqual(P.uploadName('photo 12 & copy.jpeg'), 'photo_12_copy.jpeg');
+  assert.strictEqual(P.uploadName('..%%.pdf', 'Doc'), 'Doc.pdf');
+  assert.strictEqual(P.uploadName('noext name'), 'noext_name.pdf');
+  ['a b.pdf', 'x+y;z`.jpg', "it's \"q\".pdf", 'a/b<c>%.pdf', '\u0926\u0938\u094d\u0924\u093e\u0935\u0947\u091c 1.pdf'].forEach((n) => assert.ok(/^[A-Za-z0-9_-]+\.[a-z0-9]+$/.test(P.uploadName(n)), n + ' -> ' + P.uploadName(n)));
+});
+t('doc slots: spelling correction = 1 PDF, normal = 2 PDFs', () => {
+  assert.deepStrictEqual(P.docSlots('spell'), ['single']);
+  assert.deepStrictEqual(P.docSlots('normal'), ['agreement', 'formx']);
+  assert.deepStrictEqual(P.docSlots(undefined), ['agreement', 'formx']);
+  assert.strictEqual(P.docName('87261272', 'single'), 'SpellingCorrection_87261272.pdf');
+  assert.strictEqual(P.docName('87261272', 'formx'), 'FormX_87261272.pdf');
+});
+t('share text carries the application type', () => {
+  assert.strictEqual(P.fillTemplate('ID {ID}\nType: {Type}', { id: '1', type: 'Spelling Correction In Name' }), 'ID 1\nType: Spelling Correction In Name');
+});
 console.log(`\n${n} tests passed`);

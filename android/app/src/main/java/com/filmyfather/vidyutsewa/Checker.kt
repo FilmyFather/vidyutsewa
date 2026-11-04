@@ -17,7 +17,7 @@ object Checker {
         d.put("activity", n)
     }
     private fun hasDocs(c: Context, a: JSONObject): Boolean {
-        val id = a.optString("id"); return Store.docFile(c, id, "agreement").exists() && Store.docFile(c, id, "formx").exists()
+        val id = a.optString("id"); return Store.slotsFor(a).all { Store.docFile(c, id, it).exists() }
     }
 
     private fun apply(a: JSONObject, p: Parser.Status) {
@@ -71,7 +71,7 @@ object Checker {
         val recently = System.currentTimeMillis() - a.optLong("lastReuploadAt") < 6 * 3600000L
         if (needUpload && s.optBoolean("autoReupload", true) && hasDocs(c, a) && !recently) ev.addAll(reupload(c, d, a))
         // 3-day upload deadline reminder
-        if (s.optBoolean("reminder", true) && a.optString("status") == "pending" && a.optInt("docsUploaded", 0) <= 0 && !a.optBoolean("reminded")) {
+        if (s.optBoolean("reminder", true) && a.optString("status") == "pending" && a.optInt("docsUploaded", 0) < Store.slotsFor(a).size && !a.optBoolean("reminded")) {
             val applied = a.optLong("appliedAt", a.optLong("addedAt"))
             val left = applied + 3 * DAY - System.currentTimeMillis()
             if (applied > 0 && left in 1 until DAY) { a.put("reminded", true); ev.add(Ev("Upload Deadline Today - $id", "Upload Documents Before The 3-Day Deadline Ends", id)) }
@@ -82,7 +82,8 @@ object Checker {
     /** Best effort automatic re-upload via the public upload page (ASP.NET postback). Not verified on a real rejected application. */
     fun reupload(c: Context, d: JSONObject, a: JSONObject): List<Ev> {
         val id = a.optString("id")
-        val ev = mutableListOf(Ev("Re-Uploading Document - $id", "Uploading Agreement And Form X Again", id))
+        val spell = a.optString("docMode") == "spell"
+        val ev = mutableListOf(Ev("Re-Uploading Document - $id", if (spell) "Uploading The Correction PDF Again" else "Uploading Agreement And Form X Again", id))
         a.put("lastReuploadAt", System.currentTimeMillis())
         try {
             val page = Net.request(Parser.statusUrl(id), session = "upload-$id")
@@ -90,10 +91,12 @@ object Checker {
             if (!p.hasUploadForm) throw Exception("Upload Form Not Shown Without Login")
             val fields = Parser.aspFields(page.text)
             Parser.uploadButton(page.text)?.let { fields[it.first] = it.second }
-            val ag = Store.readDoc(c, id, "agreement") ?: throw Exception("Saved Documents Missing")
-            val fx = Store.readDoc(c, id, "formx") ?: throw Exception("Saved Documents Missing")
-            val files = mutableListOf(Net.FilePart(p.fileInputs[0], Store.docName(id, "agreement"), "application/pdf", ag))
-            if (p.fileInputs.size > 1) files.add(Net.FilePart(p.fileInputs[1], Store.docName(id, "formx"), "application/pdf", fx))
+            val files = mutableListOf<Net.FilePart>()
+            Store.slotsFor(a).forEachIndexed { i, slot ->
+                val bytes = Store.readDoc(c, id, slot) ?: throw Exception("Saved Documents Missing")
+                val field = p.fileInputs.getOrNull(i) ?: throw Exception("Upload Form Has No Place For This File")
+                files.add(Net.FilePart(field, Store.docName(id, slot), "application/pdf", bytes))
+            }
             val post = Net.request(Parser.statusUrl(id), "POST", session = "upload-$id", form = fields, files = files, timeoutMs = 60000)
             if (post.status >= 400) throw Exception("Upload Rejected By Site (${post.status})")
             var after = Parser.parse(post.text)
@@ -105,7 +108,7 @@ object Checker {
             apply(a, after)
             a.put("reuploadState", "done"); a.remove("reuploadError")
             log(d, "reupload", "Re-Upload Done - $id", id)
-            ev.add(Ev("Re-Upload Done - $id", "Both Documents Uploaded Again", id))
+            ev.add(Ev("Re-Upload Done - $id", if (spell) "Correction PDF Uploaded Again" else "Both Documents Uploaded Again", id))
         } catch (e: Exception) {
             a.put("reuploadState", "failed"); a.put("reuploadError", e.message ?: "Error")
             log(d, "reupload-failed", "Re-Upload Failed - $id: ${e.message}", id)
