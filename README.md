@@ -12,8 +12,8 @@ Get the latest files from **[Releases](https://github.com/FilmyFather/vidyutsewa
 
 | File | For |
 |---|---|
-| `VidyutSewa-By-Yuvraj-1.0.1.apk` | Android 5.0 and newer (signed with v1 + v2 + v3 schemes) |
-| `VidyutSewa-By-Yuvraj-1.0.1-Windows-Portable.exe` | Windows 10 / 11 (64-bit), no install needed |
+| `VidyutSewa-By-Yuvraj-1.1.0.apk` | Android 5.0 and newer (signed with v1 + v2 + v3 schemes) |
+| `VidyutSewa-By-Yuvraj-1.1.0-Windows-Portable.exe` | Windows 10 / 11 (64-bit), no install needed |
 
 **Android:** open the APK, allow "Install Unknown Apps" for your browser / WhatsApp / file manager when asked, then tap Install. Allow notifications so status alerts can arrive.
 
@@ -31,6 +31,25 @@ Get the latest files from **[Releases](https://github.com/FilmyFather/vidyutsewa
 - **Bill**: 12-digit consumer number → bill card (name, consumer no, billing unit, units, bill month, bill date, amount, due date, after-due amount, prompt payment discount) → **original MSEDCL bill PDF** download / share on WhatsApp, previous months, recent numbers.
 - **Documents**: vault per Application ID.
 - **Settings** (gear, top right): 4 themes (Royal Electric (default), Emerald Luxe, Sunset Power, Purple Aurora) × Dark / Light / System, English / हिंदी / मराठी, mode, notifications, auto re-upload, auto-delete, optional App Lock (PIN, fingerprint on Android), Next Customer wipe, WhatsApp template (`{Name}` `{ID}` `{Shop Name}`), backup & restore (one file with all data + PDFs), storage, update check against GitHub Releases.
+
+## What's new in 1.1.0 - Apply For Change Of Name inside the app
+
+The whole **New Application (Change Of Name)** now happens in native app screens. The official MSEDCL site (wss.mahadiscom.in) runs quietly behind the app in a hidden browser session, so every rule and every number still comes from the official site, but you never see its page unless you want to.
+
+1. **Login**: user name, password and captcha (the captcha image is shown in the app, with a refresh button), then the OTP the official site sends. "Remember On This Phone" keeps the login encrypted with the phone's own key store (Windows: DPAPI); it can be removed any time.
+2. **Consumer**: your consumer list is read from the official site, or add one (with its OTP).
+3. **Page 1 - New Consumer Details**: Title + First Name in one row, Middle + Last Name in the next, the full name is composed automatically with a live `Name Length n / 50` counter that **blocks typing past 50 characters**. The title and reason lists are read from the official site. Email, mobile, reason.
+4. **Page 2 - Aadhaar**: Generate OTP first, then the linked mobile number is shown **exactly as the official site shows it**, then the OTP and Verify. Skipped when the official page marks it optional. The Aadhaar number and OTP are never stored.
+5. **Page 3 - Declaration and Submit**: declaration, place, mobile + email OTP. **Nothing is sent to MSEDCL until you tap Submit and confirm in a sheet.**
+6. **Application number + documents**: slots are built from the official upload page; files up to 1 MB are not touched, bigger ones are gently compressed; clean file names. Upload now or later.
+7. **Payment**: the official payment page opens inside the app (UPI intents open your UPI app; the QR code works). The app never sees card or UPI details.
+8. **Receipt**: after payment the app checks the official page every 30 seconds for up to 5 minutes, then saves the receipt as an **image and the official PDF** in the Documents vault and in your phone's `Download/VidyutSewa` folder, with a WhatsApp share of both.
+
+If the official page ever looks different from what the app expects, that step falls back to a generic screen built from the page's own fields, or to **Open Official Page** (the same hidden session, shown full screen, with copy buttons for your details). Tap the header title five times for a Diagnostics screen that lists every step the app took.
+
+Windows: the same flow runs in a hidden window of the desktop app. Hindi and Marathi are extended for every new string.
+
+Tests: `node tests/parsers.test.js` (name composition, 50-character counter, file rules, application number, fee, receipt status); `tests/mock/server.py` is a local imitation of the official pages used by the headless end-to-end runs in `tests/e2e/`. The mock is a model built from a screen recording, not the real site.
 
 ## What's new in 1.0.1
 

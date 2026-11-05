@@ -636,6 +636,7 @@
   window.I18N = {
     set: function (l) { lang = T[l] ? l : 'en'; document.documentElement.lang = lang; },
     t: function (s) { if (lang === 'en') return s; var d = T[lang]; return (d && d[s]) || s; },
+    extend: function (l, d) { T[l] = Object.assign(T[l] || {}, d); },
     langs: ['en', 'hi', 'mr']
   };
 })();

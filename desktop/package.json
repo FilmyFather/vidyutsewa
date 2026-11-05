@@ -1,7 +1,7 @@
 {
   "name": "vidyutsewa-desktop",
   "productName": "VidyutSewa By Yuvraj",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "VidyutSewa By Yuvraj - Electricity Name Change & Tracker (independent helper for MSEDCL consumers)",
   "author": "Yuvraj Chauhan",
   "license": "MIT",
@@ -21,8 +21,10 @@
     "copyright": "Yuvraj Chauhan",
     "files": [
       "main.js",
+      "driver.js",
       "preload.js",
       "preload-official.js",
+      "preload-drv.js",
       "web/**/*",
       "build/icon.png",
       "package.json"

@@ -120,4 +120,68 @@ t('doc slots: spelling correction = 1 PDF, normal = 2 PDFs', () => {
 t('share text carries the application type', () => {
   assert.strictEqual(P.fillTemplate('ID {ID}\nType: {Type}', { id: '1', type: 'Spelling Correction In Name' }), 'ID 1\nType: Spelling Correction In Name');
 });
+
+/* ---------- v1.1.0: New Application flow ---------- */
+t('name: Title + First + Middle + Last composed with single spaces', () => {
+  assert.strictEqual(P.composeName('Mr', 'Ramesh', '', 'Patil'), 'Mr Ramesh Patil');
+  assert.strictEqual(P.composeName('M/S', '  Jai   Laxmi ', ' ', ' Traders '), 'M/S Jai Laxmi Traders');
+  assert.strictEqual(P.composeName('', 'Sunil', 'Anant', 'Deshmukh'), 'Sunil Anant Deshmukh');
+  assert.strictEqual(P.composeName(null, undefined, '', ''), '');
+});
+t('name: counter counts the composed name (title and spaces included)', () => {
+  assert.strictEqual(P.nameLength('Mr', 'Ramesh', '', 'Patil'), 15);
+  assert.strictEqual(P.nameLength('', '', '', ''), 0);
+  assert.strictEqual(P.NAME_MAX, 50);
+});
+t('name: typing is blocked at 50 characters', () => {
+  const p = P.clampName({ title: 'M/S', first: 'A'.repeat(80), middle: '', last: '' }, 'first');
+  assert.strictEqual(P.composeName(p.title, p.first, p.middle, p.last).length, 50);
+  assert.strictEqual(p.first.length, 46);
+  // already short: untouched
+  const q = P.clampName({ title: 'Mr', first: 'Ramesh', middle: '', last: 'Patil' }, 'last');
+  assert.strictEqual(q.last, 'Patil');
+  // the field being typed is shortened, the others stay
+  const r = P.clampName({ title: 'Mr', first: 'Ramesh', middle: 'Shankar', last: 'B'.repeat(60) }, 'last');
+  assert.strictEqual(r.first, 'Ramesh'); assert.strictEqual(r.middle, 'Shankar');
+  assert.ok(P.nameLength(r.title, r.first, r.middle, r.last) <= 50);
+});
+t('email and mobile checks', () => {
+  assert.ok(P.validEmail('a.b@example.com')); assert.ok(!P.validEmail('a@b')); assert.ok(!P.validEmail('no at.com'));
+  assert.ok(P.validMobile('9876543210')); assert.ok(!P.validMobile('1234567890')); assert.ok(!P.validMobile('98765'));
+});
+t('application number is read from the confirmation text', () => {
+  assert.strictEqual(P.parseAppNo('Your Application ID is 87261272. Please upload documents.'), '87261272');
+  assert.strictEqual(P.parseAppNo('Application Number : 12345678'), '12345678');
+  assert.strictEqual(P.parseAppNo('Request registered. Application no 55667788 generated'), '55667788');
+  assert.strictEqual(P.parseAppNo('nothing here 123'), '');
+});
+t('fee is read from the page text', () => {
+  assert.strictEqual(P.feeFromText('Processing Fee : Rs. 130.00'), 130);
+  assert.strictEqual(P.feeFromText('Fee payable \u20B9 180'), 180);
+  assert.strictEqual(P.feeFromText('no money here'), 0);
+});
+t('receipt status: success / pending / failed', () => {
+  assert.strictEqual(P.receiptStatus([['Payment Status', 'Success']], ''), 'success');
+  assert.strictEqual(P.receiptStatus([['Status', 'Failed']], ''), 'failed');
+  assert.strictEqual(P.receiptStatus([['Status', 'Awaited']], ''), 'pending');
+  assert.strictEqual(P.receiptStatus([], 'Transaction Status: Successful'), 'success');
+  assert.strictEqual(P.receiptStatus([], 'no status'), '');
+});
+t('aadhaar linked mobile is shown exactly as the site writes it', () => {
+  assert.strictEqual(P.aadhaarMobileText('OTP sent to Aadhaar linked mobile 9876543210'), '9876543210');
+  assert.strictEqual(P.aadhaarMobileText('OTP sent to mobile XXXXXX3210'), 'XXXXXX3210');
+  assert.strictEqual(P.aadhaarMobileText('no number'), '');
+});
+t('upload file rules: clean names (letters, digits, _ and -), pdf extension', () => {
+  const n1 = P.uploadName('My Agreement (final) \u0905.pdf', 'Document', 'pdf');
+  assert.ok(/^[A-Za-z0-9_-]+\.pdf$/.test(n1), n1);
+  assert.ok(/^[A-Za-z0-9_-]+\.pdf$/.test(P.uploadName('  .pdf', 'Document', 'pdf')));
+  assert.strictEqual(P.receiptName('87261272', 'pdf'), 'Receipt_87261272.pdf');
+  assert.strictEqual(P.receiptName('87261272', 'jpg'), 'Receipt_87261272.jpg');
+  assert.ok(!/\s/.test(P.docName('87261272', 'agreement')));
+});
+t('versions: 1.1.0 is newer than 1.0.1', () => {
+  assert.strictEqual(P.versionNewer('1.1.0', '1.0.1'), true);
+  assert.strictEqual(P.versionNewer('1.0.1', '1.1.0'), false);
+});
 console.log(`\n${n} tests passed`);

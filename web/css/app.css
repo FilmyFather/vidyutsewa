@@ -141,8 +141,8 @@ textarea.inp{height:auto;min-height:110px;padding:10px 12px;line-height:1.4;font
 @keyframes rot{to{transform:rotate(360deg)}}
 .warn{background:rgba(214,150,50,.1);border:1px solid rgba(214,150,50,.35);border-radius:12px;padding:10px;font-size:12px;color:var(--txt);display:flex;gap:8px}
 .warn svg{stroke:var(--cp);margin-top:1px}
-.check{display:flex;gap:10px;align-items:flex-start;padding:8px 0;font-size:13px;cursor:pointer}
-.check .box{width:22px;height:22px;border-radius:7px;border:1.5px solid var(--acc);flex:none;display:flex;align-items:center;justify-content:center}
+.check{display:flex;align-items:flex-start;padding:8px 0;font-size:13px;cursor:pointer}
+.check .box{margin-right:10px;width:22px;height:22px;border-radius:7px;border:1.5px solid var(--acc);flex:none;display:flex;align-items:center;justify-content:center}
 .check.on .box{background:var(--pri);border-color:transparent}.check.on .box svg{stroke:var(--pritxt)}
 .steps{display:flex;gap:6px;align-items:center}
 .steps i{flex:1;height:4px;border-radius:2px;background:var(--line)}.steps i.on{background:var(--pri)}

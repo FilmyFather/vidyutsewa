@@ -28,8 +28,8 @@ object Store {
     private val lock = Any()
     private fun dataFile(c: Context) = File(c.filesDir, "data.json")
     fun vaultDir(c: Context, id: String): File = File(c.filesDir, "vault/" + id.replace(Regex("[^A-Za-z0-9_-]"), ""))
-    fun slotFile(slot: String) = when (slot) { "formx" -> "formx"; "single" -> "single"; else -> "agreement" }
-    fun docFile(c: Context, id: String, slot: String) = File(vaultDir(c, id), slotFile(slot) + ".pdf")
+    fun slotFile(slot: String) = when (slot) { "formx" -> "formx.pdf"; "single" -> "single.pdf"; "receiptimg" -> "receipt_img.jpg"; "receiptpdf" -> "receipt_pdf.pdf"; else -> "agreement.pdf" }
+    fun docFile(c: Context, id: String, slot: String) = File(vaultDir(c, id), slotFile(slot))
     /** Upload-safe name: letters, digits, _ and - only (the official page rejects spaces and special characters). */
     fun safeName(name: String, fallbackBase: String = "Document", fallbackExt: String = "pdf"): String {
         val dot = name.lastIndexOf('.')
@@ -39,7 +39,7 @@ object Store {
         if (base.isEmpty()) base = fallbackBase
         return "$base.$ext"
     }
-    fun docName(id: String, slot: String) = safeName((when (slot) { "formx" -> "FormX_"; "single" -> "SpellingCorrection_"; else -> "Agreement_" }) + id + ".pdf")
+    fun docName(id: String, slot: String) = safeName((when (slot) { "formx" -> "FormX_"; "single" -> "SpellingCorrection_"; "receiptimg" -> "Receipt_"; "receiptpdf" -> "Receipt_"; else -> "Agreement_" }) + id + (if (slot == "receiptimg") ".jpg" else ".pdf"))
     /** Slots an application needs: spelling correction = one PDF, normal = Agreement + Form X. */
     fun slotsFor(a: JSONObject) = if (a.optString("docMode") == "spell") listOf("single") else listOf("agreement", "formx")
 
@@ -95,6 +95,7 @@ object Store {
         val bytes = Base64.decode(b64, Base64.DEFAULT); f.writeBytes(bytes); return bytes.size.toLong()
     }
     fun readDoc(c: Context, id: String, slot: String): ByteArray? = docFile(c, id, slot).takeIf { it.exists() }?.readBytes()
-    fun deleteDocs(c: Context, id: String) { vaultDir(c, id).deleteRecursively() }
+    /** Deletes the application PDFs; the paid receipt (image + PDF) is the customer's proof and stays. */
+    fun deleteDocs(c: Context, id: String) { val d = vaultDir(c, id); d.listFiles()?.forEach { if (!it.name.startsWith("receipt_")) it.delete() }; if (d.listFiles().isNullOrEmpty()) d.deleteRecursively() }
     fun dirSize(f: File): Long = if (!f.exists()) 0 else if (f.isFile) f.length() else (f.listFiles() ?: arrayOf()).sumOf { dirSize(it) }
 }

@@ -8,7 +8,7 @@
   var REPO_API = 'https://api.github.com/repos/FilmyFather/vidyutsewa/releases/latest';
   var LOGIN_URL = 'https://wss.mahadiscom.in/wss/wss?uiActionName=getCustAccountLogin';
   var BILL_SITE = 'https://wss.mahadiscom.in/wss/wss?uiActionName=getViewPayBill';
-  var VERSION = '1.0.1';
+  var VERSION = '1.1.0';
   var DISCLAIMER = 'Independent Helper App. Not Affiliated With Or Endorsed By MSEDCL. All Applications Are Submitted And Paid On The Official MSEDCL Website.';
   var THEMES = [
     ['royal', 'Royal Electric', ['#0B1744', '#22D3EE', '#3B82F6']],
@@ -386,6 +386,7 @@
         '<button class="btn ghost sm" onclick="UI.replaceDoc(\'' + a.id + '\',\'' + slot + '\')">' + icon(d ? 'refresh' : 'plus', 14) + '</button></div>';
     });
     body += '</div>';
+    body += (UI.receiptCard ? UI.receiptCard(a) : '');
     body += '<div class="btns2"><button class="btn pri" onclick="UI.reupload(\'' + a.id + '\')">' + icon('upload', 18) + t('Re-Upload') + '</button><button class="btn wa" onclick="UI.shareApp(\'' + a.id + '\')">' + icon('wa', 18) + t('Share On WhatsApp') + '</button></div>' +
       '<div class="btns2"><button class="btn out" onclick="UI.officialStatus(\'' + a.id + '\')">' + icon('ext', 17) + t('Open Official Status') + '</button><button class="btn ghost" id="chk1" onclick="UI.checkOne(\'' + a.id + '\')">' + icon('refresh', 17) + t('Check Now') + '</button></div>' +
       (a.status === 'approved' ? '<button class="btn pri" onclick="UI.cert(\'' + a.id + '\')">' + icon('cert', 18) + t('Download Provisional Certificate') + '</button>' : '') +
@@ -643,7 +644,7 @@
 
   /* ---------- DOCUMENTS VAULT ---------- */
   screens.docs = function () {
-    var withDocs = S().apps.filter(function (a) { return a.docs && (a.docs.agreement || a.docs.formx || a.docs.single); });
+    var withDocs = S().apps.filter(function (a) { return (a.docs && (a.docs.agreement || a.docs.formx || a.docs.single)) || a.receipt; });
     var total = 0; withDocs.forEach(function (a) { ['agreement', 'formx', 'single'].forEach(function (s) { if (a.docs[s]) total += a.docs[s].size || 0; }); });
     var body = '<div class="card row between"><div class="row"><div class="ico">' + icon('shield', 18) + '</div><div><b>' + withDocs.length + ' ' + t('Folders') + '</b><div class="tiny muted">' + D.fmtSize(total) + ' \u2022 ' + t('Stored Only On This Device') + '</div></div></div></div>' +
       (S().settings.autoDelete ? '<div class="warn">' + icon('info', 16) + '<div>' + t('PDFs Are Deleted Permanently When An Application Is Approved.') + '</div></div>' : '');
@@ -654,6 +655,7 @@
           return '<div class="list-item"><div class="ico">' + icon('file', 16) + '</div><div class="grow"><div class="small ell">' + esc(d.name) + '</div><div class="tiny muted">' + D.fmtSize(d.size) + (d.origSize && d.origSize !== d.size ? ' (' + t('From') + ' ' + D.fmtSize(d.origSize) + ')' : '') + '</div></div>' +
             '<button class="btn ghost sm" onclick="UI.preview(\'' + a.id + '\',\'' + s + '\',null,\'' + esc(d.name) + '\')">' + icon('eye', 14) + '</button><button class="btn ghost sm" onclick="UI.shareDoc(\'' + a.id + '\',\'' + s + '\')">' + icon('share', 14) + '</button></div>';
         }).join('') +
+        (a.receipt ? '<div class="list-item"><div class="ico">' + icon('rupee', 16) + '</div><div class="grow"><div class="small ell">' + esc(a.receipt.imgName || 'Receipt') + ' + PDF</div><div class="tiny muted">' + t('Payment Receipt') + '</div></div><button class="btn ghost sm" onclick="UI.viewReceiptImg(\'' + a.id + '\')">' + icon('image', 14) + '</button><button class="btn ghost sm" onclick="UI.shareReceipt(\'' + a.id + '\')">' + icon('share', 14) + '</button></div>' : '') +
         '<button class="btn danger sm" style="width:100%;margin-top:6px" onclick="UI.delDocs(\'' + a.id + '\')">' + icon('trash', 14) + t('Delete PDFs') + '</button></div>';
     }).join('') : '<div class="card empty">' + icon('folder', 32) + '<div>' + t('No Saved Documents Yet') + '</div></div>';
     return page(hdrMain(t('Documents'), t('Vault By Application ID')), body, true);

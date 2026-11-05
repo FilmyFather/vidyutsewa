@@ -267,12 +267,57 @@
     return false;
   }
 
+  /* ---------- New Application (native flow) helpers ---------- */
+  var NAME_MAX = 50;
+  function oneSpace(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); }
+  // Title + First + Middle + Last, joined by single spaces (what the official "Consumer Full Name" box holds)
+  function composeName(title, first, middle, last) { return [title, first, middle, last].map(oneSpace).filter(Boolean).join(' '); }
+  function nameLength(title, first, middle, last) { return composeName(title, first, middle, last).length; }
+  // Block typing past 50: shorten the field being typed in until the whole composed name (Title + spaces + words) fits.
+  function clampName(parts, key) {
+    var p = { title: parts.title || '', first: parts.first || '', middle: parts.middle || '', last: parts.last || '' };
+    var guard = 0;
+    while (composeName(p.title, p.first, p.middle, p.last).length > NAME_MAX && p[key].length > 0 && guard++ < 200) p[key] = p[key].slice(0, -1);
+    return p;
+  }
+  function validEmail(s) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(s || '').trim()); }
+  function validMobile(s) { return /^[6-9]\d{9}$/.test(String(s || '').trim()); }
+  // Application number from the official page text (8 digits)
+  function parseAppNo(text) {
+    var s = clean(text), m = s.match(/application\s*(?:id|no\.?|number)\s*(?:is|:|-|was|generated|generated\s+is)?\s*[:\-]?\s*(\d{8})\b/i) ||
+      s.match(/(?:request|application)[^0-9]{0,60}\b(\d{8})\b/i);
+    return m ? m[1] : '';
+  }
+  // First "Rs 130" style amount near the word fee
+  function feeFromText(text) {
+    var s = clean(text), m = s.match(/(?:processing\s*)?fee[^0-9]{0,40}(?:rs\.?|inr|\u20B9)?\s*(\d{2,5})(?:\.\d+)?/i) || s.match(/(?:rs\.?|inr|\u20B9)\s*(\d{2,5})(?:\.\d+)?/i);
+    return m ? parseInt(m[1], 10) : 0;
+  }
+  // Status of the payment receipt table: 'success' | 'pending' | 'failed' | ''
+  function receiptStatus(pairs, text) {
+    var v = '';
+    (pairs || []).forEach(function (r) { if (!v && /status/i.test(r[0])) v = String(r[1] || ''); });
+    if (!v) { var m = String(text || '').match(/status\s*[:\-]?\s*(success\w*|fail\w*|pending|in\s*progress|processing|awaited|initiated)/i); v = m ? m[1] : ''; }
+    v = v.toLowerCase();
+    return /succe/.test(v) ? 'success' : /fail|declin|reject/.test(v) ? 'failed' : v ? 'pending' : '';
+  }
+  // Mobile number shown by the site for an Aadhaar OTP, exactly as written (no masking, no cleaning)
+  function aadhaarMobileText(text) {
+    var s = String(text || '').replace(/\s+/g, ' '), m = s.match(/(?:\+?91[\s-]?)?[X*x\d]{2,}[X*x\d\s-]{4,}\d{2,}/);
+    var ten = s.match(/(?:\+91[\s-]?)?[6-9]\d{9}/);
+    return (ten && ten[0]) || (m && m[0].trim()) || '';
+  }
+  // A clean file name for the receipt files (letters, digits, _ and - only)
+  function receiptName(appNo, ext) { return uploadName('Receipt_' + (appNo || 'MSEDCL') + '.' + ext, 'Receipt', ext); }
+
   return {
     STATUS_URL: STATUS_URL, BILL_HEADERS: BILL_HEADERS, clean: clean, decodeEntities: decodeEntities,
     validConsumerNo: validConsumerNo, validAppId: validAppId, classifyStatus: classifyStatus,
     parseStatusPage: parseStatusPage, statusUrl: statusUrl, aspFormFields: aspFormFields, uploadButton: uploadButton,
     billUrl: billUrl, parseBill: parseBill, yymmLabel: yymmLabel, prevMonths: prevMonths,
     findApplicationId: findApplicationId, safeFileName: safeFileName, uploadName: uploadName, docSlots: docSlots, docName: docName, guessSlot: guessSlot, fillTemplate: fillTemplate,
-    parseMsedclDate: parseMsedclDate, versionNewer: versionNewer
+    parseMsedclDate: parseMsedclDate, versionNewer: versionNewer,
+    NAME_MAX: NAME_MAX, composeName: composeName, nameLength: nameLength, clampName: clampName, validEmail: validEmail, validMobile: validMobile,
+    parseAppNo: parseAppNo, feeFromText: feeFromText, receiptStatus: receiptStatus, aadhaarMobileText: aadhaarMobileText, receiptName: receiptName
   };
 });

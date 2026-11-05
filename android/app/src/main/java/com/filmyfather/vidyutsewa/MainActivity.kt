@@ -15,6 +15,8 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.util.Base64
 import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.webkit.*
 import androidx.core.content.FileProvider
 import org.json.JSONArray
@@ -24,7 +26,8 @@ import java.util.concurrent.Executors
 
 class MainActivity : Activity() {
     private lateinit var web: WebView
-    private val io = Executors.newFixedThreadPool(3)
+    private val io = Executors.newFixedThreadPool(6)
+    lateinit var driver: Driver
     private var fileCb: ValueCallback<Array<Uri>>? = null
     private var cameraUri: Uri? = null
     private var officialCbId: String? = null
@@ -35,7 +38,10 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) WebView.setWebContentsDebuggingEnabled(true)
         web = WebView(this)
-        setContentView(web)
+        val rootF = FrameLayout(this)
+        rootF.addView(web, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        setContentView(rootF)
+        driver = Driver(this, rootF)
         web.setBackgroundColor(Color.parseColor("#050A24"))
         with(web.settings) {
             javaScriptEnabled = true; domStorageEnabled = true; allowFileAccess = false; allowContentAccess = true
@@ -72,15 +78,24 @@ class MainActivity : Activity() {
             }
         }
         web.webChromeClient = object : WebChromeClient() {
-            override fun onShowFileChooser(v: WebView, cb: ValueCallback<Array<Uri>>, p: FileChooserParams): Boolean {
+            override fun onShowFileChooser(v: WebView, cb: ValueCallback<Array<Uri>>, p: FileChooserParams): Boolean = pickFile(cb, p)
+        }
+        Checker.listener = { runOnUiThread { event("dataChanged", "{}") } }
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 9)
+        web.loadUrl("https://$ASSET_HOST/index.html")
+        handleIntent(intent)
+    }
+
+    fun pickFile(cb: ValueCallback<Array<Uri>>, p: WebChromeClient.FileChooserParams): Boolean {
                 fileCb?.onReceiveValue(null); fileCb = cb
                 val accept = p.acceptTypes.joinToString(",").lowercase()
-                val multiple = p.mode == FileChooserParams.MODE_OPEN_MULTIPLE
+                val multiple = p.mode == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE
                 try {
                     if (p.isCaptureEnabled) {
                         val dir = File(cacheDir, "camera").apply { mkdirs() }
                         val f = File(dir, "Camera_${System.currentTimeMillis()}.jpg")
-                        cameraUri = FileProvider.getUriForFile(this@MainActivity, "$packageName.files", f)
+                        cameraUri = FileProvider.getUriForFile(this, "$packageName.files", f)
                         val i = Intent(MediaStore.ACTION_IMAGE_CAPTURE).putExtra(MediaStore.EXTRA_OUTPUT, cameraUri)
                             .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         startActivityForResult(i, REQ_CAMERA)
@@ -95,13 +110,6 @@ class MainActivity : Activity() {
                     }
                 } catch (e: ActivityNotFoundException) { fileCb?.onReceiveValue(null); fileCb = null; return false }
                 return true
-            }
-        }
-        Checker.listener = { runOnUiThread { event("dataChanged", "{}") } }
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
-            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 9)
-        web.loadUrl("https://$ASSET_HOST/index.html")
-        handleIntent(intent)
     }
 
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); handleIntent(intent) }
@@ -112,8 +120,8 @@ class MainActivity : Activity() {
     override fun onPause() { super.onPause(); event("pause", "{}") }
     override fun onResume() { super.onResume(); event("resume", "{}") }
     @Deprecated("Deprecated in Java")
-    override fun onBackPressed() { event("back", "{}") }
-    override fun onDestroy() { Checker.listener = null; super.onDestroy() }
+    override fun onBackPressed() { if (::driver.isInitialized && driver.isRevealed()) { driver.onBack(); return }; event("back", "{}") }
+    override fun onDestroy() { Checker.listener = null; if (::driver.isInitialized) driver.destroy(); super.onDestroy() }
 
     private fun event(name: String, json: String) {
         if (!::web.isInitialized) return
@@ -189,7 +197,22 @@ class MainActivity : Activity() {
         "saveDownload" -> saveDownload(a.getString("name"), Base64.decode(a.getString("b64"), Base64.DEFAULT), a.optString("mime", "application/octet-stream"))
         "storageInfo" -> JSONObject().put("docs", Store.dirSize(File(filesDir, "vault"))).put("cache", Store.dirSize(cacheDir))
         "clearCache" -> { cacheDir.listFiles()?.forEach { it.deleteRecursively() }; runOnUiThread { web.clearCache(true) }; true }
-        "appInfo" -> JSONObject().put("version", "1.0.1").put("platform", "android")
+        "appInfo" -> JSONObject().put("version", "1.1.0").put("platform", "android")
+        "drvSeq" -> JSONObject().put("seq", driver.finishSeq).put("start", driver.startSeq)
+        "drvWaitNav" -> {
+            val seq = a.optInt("seq"); val start = a.optInt("start"); val ms = a.optLong("ms", 8000); val quick = a.optLong("quick", 1800)
+            val t0 = System.currentTimeMillis(); var nav = false
+            while (System.currentTimeMillis() - t0 < ms) {
+                if (driver.finishSeq > seq) { Thread.sleep(200); nav = true; break }
+                if (driver.startSeq <= start && System.currentTimeMillis() - t0 > quick) break
+                Thread.sleep(80)
+            }
+            JSONObject().put("navigated", nav)
+        }
+        "drvMsgs" -> driver.drainMsgs()
+        "credGet" -> Creds.load(this)
+        "credSet" -> { Creds.save(this, a.getString("user"), a.optString("pass")); true }
+        "credClear" -> { Creds.clear(this); true }
         else -> throw Exception("Unknown Action $method")
     }
     private fun evJson(ev: List<Checker.Ev>) = JSONArray().apply { ev.forEach { put(JSONObject().put("title", it.title).put("body", it.body)) } }
@@ -225,6 +248,12 @@ class MainActivity : Activity() {
                 reply(cbId, true)
             }
             "biometric" -> biometric(a, cbId)
+            "drvLoad" -> driver.load(a.getString("url")) { r, e -> reply(cbId, r, e) }
+            "drvEval" -> driver.eval(a.getString("script"), a.optLong("timeout", 20000)) { r, e -> reply(cbId, r, e) }
+            "drvReset" -> driver.reset { reply(cbId, true) }
+            "drvHide" -> { driver.hide(); reply(cbId, true) }
+            "drvShow" -> driver.show(a.optString("title", "Official Page"), a.optJSONArray("copy") ?: JSONArray()) { reply(cbId, JSONObject().put("closed", true)) }
+            "copy" -> { driver.copyText(a.optString("text")); reply(cbId, true) }
             else -> reply(cbId, null, "Unknown Action $method")
         }
     }
@@ -240,13 +269,13 @@ class MainActivity : Activity() {
             startActivity(Intent.createChooser(i.setPackage(null), "Share")); return
         }
         val dir = File(cacheDir, "share").apply { mkdirs() }
-        val uris = ArrayList<Uri>()
+        val uris = ArrayList<Uri>(); val mimes = HashSet<String>()
         for (k in 0 until files.length()) {
-            val f = files.getJSONObject(k); val out = File(dir, f.getString("name").replace(Regex("[^A-Za-z0-9._-]"), "_"))
+            val f = files.getJSONObject(k); mimes.add(f.optString("mime", "application/pdf")); val out = File(dir, f.getString("name").replace(Regex("[^A-Za-z0-9._-]"), "_"))
             out.writeBytes(Base64.decode(f.getString("b64"), Base64.DEFAULT)); uris.add(FileProvider.getUriForFile(this, "$packageName.files", out))
         }
         val i = if (uris.size == 1) Intent(Intent.ACTION_SEND).putExtra(Intent.EXTRA_STREAM, uris[0]) else Intent(Intent.ACTION_SEND_MULTIPLE).putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
-        i.type = "application/pdf"; i.putExtra(Intent.EXTRA_TEXT, text); i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        i.type = if (mimes.size == 1) mimes.first() else "*/*"; i.putExtra(Intent.EXTRA_TEXT, text); i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         if (pkg != null) { i.setPackage(pkg); try { startActivity(i); return } catch (_: Exception) { i.setPackage(null) } }
         startActivity(Intent.createChooser(i, "Share"))
     }
@@ -289,6 +318,6 @@ class MainActivity : Activity() {
     companion object {
         const val REQ_FILE = 11; const val REQ_CAMERA = 12; const val REQ_OFFICIAL = 13
         @Volatile var lastCrash = 0L
-        val UI_METHODS = setOf("exit", "openExternal", "theme", "openOfficial", "clearWebSession", "share", "openFile", "biometric")
+        val UI_METHODS = setOf("exit", "openExternal", "theme", "openOfficial", "clearWebSession", "share", "openFile", "biometric", "drvLoad", "drvEval", "drvReset", "drvHide", "drvShow", "copy")
     }
 }

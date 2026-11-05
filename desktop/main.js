@@ -16,9 +16,10 @@ app.setAppUserModelId(APP_ID);
 const userDir = () => app.getPath('userData');
 const dataFile = () => path.join(userDir(), 'data.json');
 const vaultDir = (id) => path.join(userDir(), 'vault', String(id).replace(/[^A-Za-z0-9_-]/g, ''));
-const docFile = (id, slot) => path.join(vaultDir(id), (slot === 'formx' ? 'formx' : slot === 'single' ? 'single' : 'agreement') + '.pdf');
+const SLOT_FILE = { formx: 'formx.pdf', single: 'single.pdf', receiptimg: 'receipt_img.jpg', receiptpdf: 'receipt_pdf.pdf' };
+const docFile = (id, slot) => path.join(vaultDir(id), SLOT_FILE[slot] || 'agreement.pdf');
 const safeName = (n) => n.replace(/[^A-Za-z0-9_.-]+/g, '_');   // letters, digits, _ - and the extension only
-const docName = (id, slot) => safeName((slot === 'formx' ? 'FormX_' : slot === 'single' ? 'SpellingCorrection_' : 'Agreement_') + id + '.pdf');
+const docName = (id, slot) => safeName((slot === 'formx' ? 'FormX_' : slot === 'single' ? 'SpellingCorrection_' : slot === 'receiptimg' || slot === 'receiptpdf' ? 'Receipt_' : 'Agreement_') + id + (slot === 'receiptimg' ? '.jpg' : '.pdf'));
 const dlDir = () => { const d = path.join(app.getPath('downloads'), 'VidyutSewa'); fs.mkdirSync(d, { recursive: true }); return d; };
 function dirSize(p) { try { const s = fs.statSync(p); if (s.isFile()) return s.size; return fs.readdirSync(p).reduce((a, f) => a + dirSize(path.join(p, f)), 0); } catch (e) { return 0; } }
 function event(name, data) { if (win && !win.isDestroyed()) win.webContents.send('vs-event', name, JSON.stringify(data || {})); }
@@ -134,13 +135,16 @@ function openOfficial(a) {
 }
 
 /* ---------- bridge ---------- */
+const driver = require('./driver.js')({ getWin: () => win, iconPath, dlDir, UA, userDir, isQuitting: () => quitting });
 const handlers = {
+  ...driver,
   loadData: () => fs.existsSync(dataFile()) ? fs.readFileSync(dataFile(), 'utf8') : '',
   saveData: (a) => { const tmp = dataFile() + '.tmp'; fs.writeFileSync(tmp, a.json); fs.renameSync(tmp, dataFile()); return true; },
   http,
   saveDoc: (a) => { fs.mkdirSync(vaultDir(a.id), { recursive: true }); const b = Buffer.from(a.b64, 'base64'); fs.writeFileSync(docFile(a.id, a.slot), b); return { size: b.length }; },
   readDoc: (a) => { const f = docFile(a.id, a.slot); return fs.existsSync(f) ? { name: docName(a.id, a.slot), b64: fs.readFileSync(f).toString('base64') } : null; },
-  deleteDocs: (a) => { fs.rmSync(vaultDir(a.id), { recursive: true, force: true }); return true; },
+  // application PDFs go; the paid receipt (image + PDF) is the customer's proof and stays
+  deleteDocs: (a) => { const d = vaultDir(a.id); try { for (const f of fs.readdirSync(d)) if (!f.startsWith('receipt_')) fs.rmSync(path.join(d, f), { force: true }); if (!fs.readdirSync(d).length) fs.rmSync(d, { recursive: true, force: true }); } catch (e) {} return true; },
   saveDownload: (a) => { const p = path.join(dlDir(), a.name.replace(/[^A-Za-z0-9._-]/g, '_')); fs.writeFileSync(p, Buffer.from(a.b64, 'base64')); return { path: p, where: p }; },
   openFile: (a) => { if (a.path) shell.openPath(a.path); return true; },
   share: async (a) => {
