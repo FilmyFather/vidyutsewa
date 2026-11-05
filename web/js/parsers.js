@@ -270,15 +270,58 @@
   /* ---------- New Application (native flow) helpers ---------- */
   var NAME_MAX = 50;
   function oneSpace(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); }
-  // Title + First + Middle + Last, joined by single spaces (what the official "Consumer Full Name" box holds)
-  function composeName(title, first, middle, last) { return [title, first, middle, last].map(oneSpace).filter(Boolean).join(' '); }
+  // v1.1.2: every name is UPPERCASE (the title keeps the official site's own option text)
+  function upName(s) { return String(s == null ? '' : s).toUpperCase(); }
+  // M/S (a firm / society): ONE single-line name field; First / Middle / Last do not exist for it (the official page hides and blanks them)
+  function isMS(title) { return /^\s*m\s*\/\s*s\.?\s*$/i.test(String(title == null ? '' : title)); }
+  // Title + First + Middle + Last, joined by single spaces (what the official "Consumer Full Name" box holds).
+  // M/S: 'M/S ' + name, trimmed.
+  function composeName(title, first, middle, last) {
+    if (isMS(title)) return [title, upName(first)].map(oneSpace).filter(Boolean).join(' ');
+    return [title, upName(first), upName(middle), upName(last)].map(oneSpace).filter(Boolean).join(' ');
+  }
   function nameLength(title, first, middle, last) { return composeName(title, first, middle, last).length; }
   // Block typing past 50: shorten the field being typed in until the whole composed name (Title + spaces + words) fits.
   function clampName(parts, key) {
-    var p = { title: parts.title || '', first: parts.first || '', middle: parts.middle || '', last: parts.last || '' };
+    var p = { title: parts.title || '', first: upName(parts.first || ''), middle: upName(parts.middle || ''), last: upName(parts.last || '') };
+    if (isMS(p.title)) { p.middle = ''; p.last = ''; }
     var guard = 0;
     while (composeName(p.title, p.first, p.middle, p.last).length > NAME_MAX && p[key].length > 0 && guard++ < 200) p[key] = p[key].slice(0, -1);
     return p;
+  }
+  /* ---------- v1.1.2: Aadhaar checks (done on the phone BEFORE anything is sent to the official site; nothing is stored or logged) ---------- */
+  var VD = [[0,1,2,3,4,5,6,7,8,9],[1,2,3,4,0,6,7,8,9,5],[2,3,4,0,1,7,8,9,5,6],[3,4,0,1,2,8,9,5,6,7],[4,0,1,2,3,9,5,6,7,8],[5,9,8,7,6,0,4,3,2,1],[6,5,9,8,7,1,0,4,3,2],[7,6,5,9,8,2,1,0,4,3],[8,7,6,5,9,3,2,1,0,4],[9,8,7,6,5,4,3,2,1,0]];
+  var VP = [[0,1,2,3,4,5,6,7,8,9],[1,5,7,6,2,8,3,0,9,4],[5,8,0,3,7,9,6,1,4,2],[8,9,1,6,0,4,3,5,2,7],[9,4,5,3,1,2,6,8,7,0],[4,2,8,6,5,7,3,9,0,1],[2,7,9,3,8,0,6,4,1,5],[7,0,4,6,9,1,3,2,5,8]];
+  function verhoeffValid(num) {
+    var s = String(num || ''); if (!/^\d+$/.test(s)) return false;
+    var c = 0, a = s.split('').reverse();
+    for (var i = 0; i < a.length; i++) c = VD[c][VP[i % 8][+a[i]]];
+    return c === 0;
+  }
+  // 12 digits, first digit 2-9, Verhoeff check digit correct
+  function validAadhaar(num) { var s = String(num || '').replace(/[\s-]/g, ''); return /^[2-9]\d{11}$/.test(s) && verhoeffValid(s); }
+  // The official page waives Aadhaar for a residential consumer when the composed name contains one of these words (substring match, as the page does)
+  var AAD_WAIVE = ["agency","apartment","appt","appartment","association","authority","bank","board","builder","builders","chairman","church","chs","c.h.s","club","college","colony","commissioner","commis","common","company","complex","condominium","commandant","construction","co op","cooperative housing","corporation","court","darga","dharamshala","developer","devstan","division","education","enclave","engineer","enterprises","estate","executive","federation","foundation","government","govt","grampanchayat","gruh","gurudwara","gymkhana","headmaster","health","height","hostel","housingsoc","institute","judge","limited","llp","ltd","magistrate","mandal","mandir","masjid","mohalla","mosque","mukhyadhyapak","mukhyaadhikari","municipal","municipal corporation","muncipal corporation","nagarpalika","nagar palika","nagarparishad","nagar parishad","officer","paying guest","pg","police","postoffice","principal","primary","private","pvtltd","pvt ltd","quarters","regency","registar","residence","residency","sahakari","sangh","sangha","sanstha","sansthan","sarpanch","school","secretary","society","superintendant","supdt","tahasildar","temple","the","township","transport","treasury","trust","trustee","university","vidyalay","wing","workshop","zillparishad"];
+  function aadhaarWaived(fullName) { var n = String(fullName || '').toLowerCase(); return AAD_WAIVE.some(function (k) { return n.indexOf(k) >= 0; }); }
+  // What the official page said about the Aadhaar OTP, from its own alerts: {ok, error, text}. A reply with an error word is an ERROR, never a "linked mobile".
+  var AAD_BAD = /invalid|error|fail|not\s+found|no\s+mobile|incorrect|wrong|unable|please\s+(enter|try)|try\s+after|mandatory|not\s+matched/i;
+  function aadhaarReply(msgs) {
+    var list = (msgs || []).map(function (m) { return oneSpace(m && m.t != null ? m.t : m); }).filter(Boolean), seen = {}, uniq = [];
+    list.forEach(function (x) { if (!seen[x]) { seen[x] = 1; uniq.push(x); } });
+    var bad = uniq.filter(function (x) { return AAD_BAD.test(x); });
+    if (bad.length) return { ok: false, error: bad.join(' ').slice(0, 300), text: uniq.join(' ').slice(0, 300) };
+    return { ok: uniq.length > 0, error: '', text: uniq.join(' ').slice(0, 300) };
+  }
+  /* ---------- v1.1.2: consumer list search (name + number from one box) ---------- */
+  function normQ(s) { return String(s == null ? '' : s).toLowerCase().replace(/\s+/g, ' ').trim(); }
+  function filterConsumers(list, q) {
+    var n = normQ(q); if (!n) return (list || []).slice();
+    var digits = n.replace(/\D/g, ''), onlyNum = /^[\d\s-]+$/.test(n) && digits.length > 0;
+    return (list || []).filter(function (c) {
+      var name = normQ(c.name), cno = String(c.cno || '');
+      if (onlyNum) return cno.indexOf(digits) >= 0 || name.indexOf(n) >= 0;       // digits: the consumer number (substring)
+      return name.indexOf(n) >= 0 || normQ((c.cells || []).join(' ')).indexOf(n) >= 0;   // text: the name, then the billing unit / division line
+    });
   }
   function validEmail(s) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(s || '').trim()); }
   function validMobile(s) { return /^[6-9]\d{9}$/.test(String(s || '').trim()); }
@@ -378,7 +421,7 @@
     billUrl: billUrl, parseBill: parseBill, yymmLabel: yymmLabel, prevMonths: prevMonths,
     findApplicationId: findApplicationId, safeFileName: safeFileName, uploadName: uploadName, docSlots: docSlots, docName: docName, guessSlot: guessSlot, fillTemplate: fillTemplate,
     parseMsedclDate: parseMsedclDate, versionNewer: versionNewer,
-    NAME_MAX: NAME_MAX, composeName: composeName, nameLength: nameLength, clampName: clampName, validEmail: validEmail, validMobile: validMobile,
+    NAME_MAX: NAME_MAX, isMS: isMS, upName: upName, verhoeffValid: verhoeffValid, validAadhaar: validAadhaar, aadhaarWaived: aadhaarWaived, aadhaarReply: aadhaarReply, filterConsumers: filterConsumers, composeName: composeName, nameLength: nameLength, clampName: clampName, validEmail: validEmail, validMobile: validMobile,
     parseAppNo: parseAppNo, feeFromText: feeFromText, receiptStatus: receiptStatus, aadhaarMobileText: aadhaarMobileText, receiptName: receiptName,
     cleanErrors: cleanErrors, otpBoxes: otpBoxes, classifyLoginPage: classifyLoginPage
   };

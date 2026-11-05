@@ -1,4 +1,4 @@
-/* VidyutSewa By Yuvraj v1.1.1 - NATIVE "New Application" (Change Of Name).
+/* VidyutSewa By Yuvraj v1.1.2 - NATIVE "New Application" (Change Of Name).
  * The official wss.mahadiscom.in pages run invisibly in a hidden session (see vsdrv.js); this file mirrors each step in native screens.
  * The person types captcha, OTPs and Aadhaar here; the app only hands them to the official page. Submit and payment happen only on a tap.
  * Nothing is stored except the (optional) login name + password in the device's secure storage, and the saved application itself. */
@@ -38,8 +38,10 @@
     diag('act', label, !err && !(r && r.ok === false), (err || (r && r.err) || '') + (r && r.text ? 'clicked "' + r.text + '"' + (r.id ? ' #' + r.id : '') : '') + (all.length ? ' | msgs: ' + all.join(' / ') : ''));
     return { r: r, err: err, navigated: !!(nav && nav.navigated), msgs: all };
   }
+  function redactAad(x) { return String(x == null ? '' : x).replace(/\d{4,}/g, function (m) { return '[' + m.length + ' digits]'; }); }
   function diag(kind, what, ok, detail) {
     if (!NA) return;
+    if (NA.step === 'aadhaar' || kind === 'aadhaar') { what = redactAad(what); detail = redactAad(detail); }   // the Aadhaar step never logs a number, a mobile or an OTP
     NA.diag.push({ at: Date.now(), step: NA.step, kind: kind, what: what, ok: ok !== false, detail: String(detail || '').slice(0, kind === 'state' ? 900 : 300) });
     if (NA.diag.length > 300) NA.diag.shift();
   }
@@ -72,11 +74,11 @@
     email: { tag: 'input', any: ['email id', 'emailid', 'email', 'e-mail'], notType: NOT_BOX, editable: true, not: ['otp', 'old'] },
     mobile: { tag: 'input', any: ['mobile number', 'mobile no', 'mobile', 'cell'], notType: NOT_BOX, editable: true, not: ['otp', 'old', 'aadhaar', 'aadhar'] },
     reason: { tag: 'select', any: ['select a reason', 'reason', 'purpose'], optHas: ['ownership', 'spelling', 'death', 'partition', 'correction', 'transfer'] },
-    aadConsent: { type: 'checkbox', any: ['aadhaar', 'aadhar', 'uidai', 'consent'] },
-    aadNo: { tag: 'input', any: ['aadhaar number', 'aadhar number', 'aadhaarno', 'aadhaar no', 'aadhar no', 'uid number', 'aadhaar', 'aadhar'], notType: NOT_BOX, editable: true, not: ['otp'] },
-    declare: { type: 'checkbox', any: ['agree', 'terms and conditions', 'declare', 'declaration', 'accept'], not: ['aadhaar', 'aadhar'] },
-    place: { tag: 'input', any: ['place'], notType: NOT_BOX, editable: true },
-    submit: { any: ['submit'], not: ['otp', 'resubmit', 'back', 'reset', 'cancel'], last: true },
+    aadConsent: { ids: ['chkUIDAIConcent'], type: 'checkbox', any: ['aadhaar', 'aadhar', 'uidai', 'consent'] },
+    aadNo: { ids: ['txtAadharNo'], hidden: true, tag: 'input', any: ['aadhaar number/virtual id', 'aadhaar number', 'aadhar number', 'virtual id', 'aadhaarno', 'aadhaar no', 'aadhar no', 'uid number', 'aadhaar', 'aadhar'], notType: NOT_BOX, editable: true, not: ['otp'] },
+    declare: { ids: ['chkAgreementCondition'], type: 'checkbox', any: ['agree', 'terms and conditions', 'declare', 'declaration', 'accept'], not: ['aadhaar', 'aadhar'] },
+    place: { ids: ['txtPlace'], tag: 'input', any: ['place'], notType: NOT_BOX, editable: true },
+    submit: { ids: ['SubmitButton'], any: ['submit'], not: ['otp', 'resubmit', 'back', 'reset', 'cancel'], last: true },
     changeName: { any: ['change of name', 'name change', 'change name'] },
     addConsumer: { any: ['add consumer', 'add new consumer', 'add account', 'link consumer'] },
     myAccount: { any: ['my account', 'my accounts', 'consumer list'] },
@@ -86,7 +88,7 @@
   function otpFieldsOf(s) {
     return (s.fields || []).filter(function (f) {
       var k = (f.label + ' ' + f.id + ' ' + f.name).toLowerCase();
-      return /otp/.test(k) && !/aadhaar|aadhar|aad/.test(k) && !/captcha/.test(k) && f.type !== 'checkbox' && f.type !== 'radio' && f.tag === 'input' && !f.ro;
+      return /otp/.test(k) && !/aadhaar|aadhar|aad|uidai/.test(k) && !/captcha/.test(k) && f.type !== 'checkbox' && f.type !== 'radio' && f.tag === 'input' && !f.ro;
     });
   }
 
@@ -97,7 +99,8 @@
       login: { user: '', pass: '', remember: false, captcha: '', cap: '', otp: '', needOtp: false, creds: false },
       accounts: [], sel: '', old: [],
       f: { title: '', first: '', middle: '', last: '', email: '', mobile: '', reason: '', place: '', titles: [], reasons: [], req: {}, siteFull: '', agree: false },
-      aad: { consent: false, hasNo: false, optional: false, no: '', otp: '', note: '', sent: false, mobile: '', msg: '', verified: false, done: false, siteHas: false },
+      aad: { consent: false, hasNo: false, optional: false, required: false, waived: false, no: '', otp: '', mob: '', note: '', sent: false, mobile: '', last4: '', mobEdit: false, err: '', msg: '', verified: false, done: false, siteHas: false, tried: 0 },
+      cq: '', names: {},
       p3: { otp: {}, otpFields: [], sent: false, msg: '', agree: false, place: '' },
       appNo: '', slots: [], uploadDone: false, payFee: 0, wait: { until: 0, last: 0, status: '', rows: [] }, receipt: null, gen: null, savedId: '' };
   }
@@ -132,6 +135,7 @@
       var k = path[path.length - 1];
       if (e.type === 'checkbox') o[k] = !!e.checked; else o[k] = e.value;
     });
+    ['first', 'middle', 'last'].forEach(function (k) { NA.f[k] = P.upName(NA.f[k] || ''); });
     Array.prototype.forEach.call(root().querySelectorAll('[data-otp]'), function (e) { NA.p3.otp[e.getAttribute('data-otp')] = e.value; });
     Array.prototype.forEach.call(root().querySelectorAll('[data-gi]'), function (e) { if (NA.gen) NA.gen.vals[e.getAttribute('data-gi')] = e.type === 'checkbox' ? !!e.checked : e.value; });
   }
@@ -140,14 +144,27 @@
     ['first', 'middle', 'last'].forEach(function (k) {
       var e = el.querySelector('[data-k="f.' + k + '"]'); if (!e) return;
       e.addEventListener('input', function () {
+        var up = e.value.toUpperCase();                                    // names are UPPERCASE: typed, pasted or composed
+        if (up !== e.value) { var pos = e.selectionStart; e.value = up; try { e.setSelectionRange(pos, pos); } catch (x) {} }
         readInputs();
         var c = P.clampName({ title: NA.f.title, first: NA.f.first, middle: NA.f.middle, last: NA.f.last }, k);
         if (c[k] !== NA.f[k]) { NA.f[k] = c[k]; e.value = c[k]; }
         nameLive();
       });
     });
-    var ti = el.querySelector('[data-k="f.title"]'); if (ti) ti.addEventListener('change', function () { readInputs(); ['first', 'middle', 'last'].forEach(function (k) { var c = P.clampName({ title: NA.f.title, first: NA.f.first, middle: NA.f.middle, last: NA.f.last }, k); NA.f[k] = c[k]; var e = el.querySelector('[data-k="f.' + k + '"]'); if (e) e.value = c[k]; }); nameLive(); });
-    var ad = el.querySelector('[data-k="aad.no"]'); if (ad) ad.addEventListener('input', function () { ad.value = ad.value.replace(/\D/g, '').slice(0, 12); NA.aad.no = ad.value; var b = el.querySelector('#aad-gen'); if (b) b.disabled = !(ad.value.length === 12 && NA.aad.consent); });
+    var ti = el.querySelector('[data-k="f.title"]');
+    if (ti) ti.addEventListener('change', function () {
+      readInputs();
+      if (P.isMS(NA.f.title)) { NA.f.middle = ''; NA.f.last = ''; }          // M/S: one single-line Name; First / Middle / Last do not exist
+      var c = P.clampName({ title: NA.f.title, first: NA.f.first, middle: NA.f.middle, last: NA.f.last }, 'first'); NA.f.first = c.first;
+      rerender(true);
+    });
+    var ad = el.querySelector('[data-k="aad.no"]'); if (ad) ad.addEventListener('input', function () {
+      ad.value = ad.value.replace(/\D/g, '').slice(0, 12); NA.aad.no = ad.value;
+      var b = el.querySelector('#aad-gen'); if (b) b.disabled = !(P.validAadhaar(ad.value) && NA.aad.consent && !NA.busy);
+      var m = el.querySelector('#aad-bad'); if (m) m.style.display = aadLive(ad.value) ? '' : 'none';
+    });
+    var cs = el.querySelector('#cons-q'); if (cs) cs.addEventListener('input', function () { NA.cq = cs.value; NAUI.refreshCons(); });
     ['login.captcha', 'login.otp'].forEach(function (k) { var e = el.querySelector('[data-k="' + k + '"]'); if (e) e.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') NAUI.doLogin(); }); });
   }
   function fullName() { return P.composeName(NA.f.title, NA.f.first, NA.f.middle, NA.f.last); }
@@ -173,13 +190,14 @@
   function getPath(key) { var o = NA, p = key.split('.'); for (var i = 0; i < p.length; i++) o = o ? o[p[i]] : ''; return o == null ? '' : o; }
   function tick(key, label, on) { return '<div class="check ' + (on ? 'on' : '') + '" onclick="NAUI.tickK(\'' + key + '\')"><span class="box">' + (on ? ic('check', 14) : '') + '</span><span>' + label + '</span></div>'; }
   NAUI.tickK = function (key) { readInputs(); var p = key.split('.'), o = NA; for (var i = 0; i < p.length - 1; i++) o = o[p[i]]; o[p[p.length - 1]] = !o[p[p.length - 1]]; if (key === 'aad.consent') return NAUI.aadConsent(); rerender(true); };
-  function fallbackLink() { return '<div style="text-align:center"><button class="btn ghost sm" onclick="NAUI.official()">' + ic('ext', 14) + t('Open Official Page') + '</button></div>'; }
+  // on EVERY step screen: Open Official Page + Diagnostics, always visible near the footer
+  function fallbackLink() { return '<div class="fbrow" style="text-align:center"><button class="btn ghost sm" onclick="NAUI.official()">' + ic('ext', 14) + t('Open Official Page') + '</button> <button class="btn ghost sm" onclick="NAUI.diag()">' + ic('info', 14) + t('Diagnostics') + '</button></div>'; }
 
   NAUI.render = function () {
     if (!NA) NA = fresh();
     var s = NA.step, body = '', title = t('New Application');
     var R = NAUI.views;
-    if (R[s]) { var v = R[s](); body = v.body; title = v.title || title; }
+    if (R[s]) { var v = R[s](); body = v.body; title = v.title || title; if (body.indexOf('class="fbrow"') < 0) body += fallbackLink(); }
     return page(head(title), body, false);
   };
   NAUI.views = {};
@@ -327,7 +345,10 @@
     diagState('after ' + (phase === 'otp' ? 'OTP' : 'login') + ' click (' + Math.round(r.waited / 1000) + 's)', w, r.errs);
     if (phase === 'creds' && w.kind === 'loginotp') {
       var sm = String(w.s.main || w.s.text || ''), mm = sm.match(/Mobile\s*(?:Number|No\.?)\s*:?\s*([X*x\d]{4,})/i), em = sm.match(/E-?mail\s*(?:ID)?\s*:?\s*(\S+@\S+|[X*x\w.]+@[\w.*]+)/i);
-      L.needOtp = true; L.otpMsg = r.errs.filter(function (x) { return /otp/i.test(x); })[0] || (t('The Official Site Sent An OTP To The Registered Mobile.') + (mm ? ' ' + mm[1] : ''));
+      var popup = (r.msgs || []).filter(function (x) { return /otp/i.test(x) && /sent|send|contact/i.test(x); })[0] || '';          // the site's own pop-up: "OTP has been successfully sent to following contact details ..."
+      var det = [mm ? t('Mobile') + ': ' + mm[1] : '', em ? t('Email') + ': ' + em[1] : ''].filter(function (x) { return x && popup.indexOf(x.split(': ')[1]) < 0; }).join(' \u2022 ');
+      L.needOtp = true; L.otpMsg = ((popup || r.errs.filter(function (x) { return /otp/i.test(x); })[0] || (t('The Official Site Sent An OTP To The Registered Mobile.'))) + (det ? ' ' + det : '')).slice(0, 420);
+      diag('page', 'login otp pop-up', !!popup, popup || '(no pop-up text; page text used)');
       NA.busy = ''; return rerender(false);
     }
     if (w.kind !== 'accounts' && w.kind !== 'home') {
@@ -368,24 +389,55 @@
     try {
       var w = await ensureAccounts();
       if (w.kind === 'login') { NA.err = t('Session Expired. Please Login Again.'); return NAUI.toLogin(); }
-      NA.accounts = w.cons.map(function (c) { return { cno: c.cno, text: c.text, cells: c.cells }; });
-      diag('page', 'accounts', NA.accounts.length > 0, NA.accounts.length + ' consumers; page=' + w.kind);
-      NA.busy = '';
+      NA.accounts = w.cons.map(function (c) { return { cno: c.cno, text: c.text, cells: c.cells, name: c.name || '' }; });
+      diag('page', 'accounts', NA.accounts.length > 0, NA.accounts.length + ' consumers; page=' + w.kind + '; names from the list: ' + NA.accounts.filter(function (c) { return c.name; }).length);
+      NA.busy = ''; setTimeout(function () { NAUI.loadNames(); }, 50);
       if (!NA.accounts.length) { NA.err = t('No Consumer List Found On This Page.') + ' ' + t('Add A Consumer Or Open The Official Page.'); }
       rerender(false);
     } catch (e) { fail(e.message || String(e)); }
   };
+  /* consumer rows: NAME (bold) + number + the grey billing unit line. The name comes from the list itself (the official page keeps it in the number cell's tooltip)
+   * or, when that is missing, from the official app's bill service, 4 numbers at a time, kept in memory only for this visit. */
+  function nameOf(c) { var n = NA.names && NA.names[c.cno]; return c.name || (n && n.name) || ''; }
+  function acctRow(c) {
+    var on = NA.sel === c.cno, nm = nameOf(c), st = NA.names[c.cno] && NA.names[c.cno].st, cells = (c.cells || []).filter(function (x) { return x !== c.cno && x !== nm; }).slice(0, 3);
+    var nameHtml = nm ? '<b style="display:block;word-break:break-word">' + esc(nm) + '</b>' : (st === 'fail' ? '' : '<span class="skl" style="display:block;height:12px;width:55%;border-radius:6px;background:var(--line);margin:2px 0 4px;opacity:.7"></span>');
+    return '<div class="card modecard ' + (on ? 'sel' : '') + '" style="margin:0 0 8px" onclick="NAUI.pickCons(\'' + c.cno + '\')"><div class="grow">' + nameHtml + '<div class="mono ' + (nm ? 'small' : '') + '" ' + (nm ? '' : 'style="font-weight:700"') + '>' + esc(c.cno) + '</div><div class="tiny muted">' + esc(cells.join(' \u2022 ')) + '</div></div>' + (on ? ic('check', 20, ' style="stroke:var(--acc)"') : '') + '</div>';
+  }
+  function consShown() { return P.filterConsumers(NA.accounts.map(function (c) { return { cno: c.cno, name: nameOf(c), cells: c.cells, text: c.text, ref: c }; }), NA.cq).map(function (x) { return x.ref; }); }
+  function consListHtml() {
+    var list = consShown();
+    return list.length ? list.map(acctRow).join('') : '<div class="card empty">' + ic('user', 30) + '<div>' + t('No Consumers Found') + '</div></div>';
+  }
+  NAUI.refreshCons = function () {
+    var box = root() && root().querySelector('#cons-list'); if (!box) return;
+    box.innerHTML = consListHtml();
+    var n = root().querySelector('#cons-n'); if (n) n.textContent = consShown().length + ' / ' + NA.accounts.length;
+  };
   NAUI.views.accounts = function () {
     var A = NA.accounts, body = stepsBar() + '<div class="sec">' + t('Select Consumer') + '</div>' + errBox() + busyBox();
-    body += A.length ? A.map(function (c) {
-      var on = NA.sel === c.cno, cells = c.cells.filter(function (x) { return x !== c.cno; }).slice(0, 3);
-      return '<div class="card modecard ' + (on ? 'sel' : '') + '" style="margin:0" onclick="NAUI.pickCons(\'' + c.cno + '\')"><div class="grow"><b class="mono">' + esc(c.cno) + '</b><div class="tiny muted">' + esc(cells.join(' \u2022 ')) + '</div></div>' + (on ? ic('check', 20, ' style="stroke:var(--acc)"') : '') + '</div>';
-    }).join('') : (NA.busy ? '' : '<div class="card empty">' + ic('user', 30) + '<div>' + t('No Consumers Found') + '</div></div>');
-    body += '<button class="btn pri" ' + (NA.sel && !NA.busy ? '' : 'disabled') + ' onclick="NAUI.openForm()">' + t('Continue') + ' ' + ic('right', 18) + '</button>' +
+    if (A.length) body += '<div style="position:sticky;top:0;z-index:6;background:var(--page);padding:4px 0 8px"><div class="row" style="gap:8px;align-items:center"><div class="field" style="flex:1;margin:0"><input id="cons-q" class="inp" data-k="cq" type="search" autocomplete="off" autocapitalize="off" placeholder="' + t('Search By Name Or Consumer Number') + '" value="' + esc(NA.cq) + '"></div><span id="cons-n" class="chip c-c">' + consShown().length + ' / ' + A.length + '</span></div></div>';
+    body += A.length ? '<div id="cons-list">' + consListHtml() + '</div>' : (NA.busy ? '' : '<div class="card empty">' + ic('user', 30) + '<div>' + t('No Consumers Found') + '</div></div>');
+    body += '<button id="cons-go" class="btn pri" ' + (NA.sel && !NA.busy ? '' : 'disabled') + ' onclick="NAUI.openForm()">' + t('Continue') + ' ' + ic('right', 18) + '</button>' +
       '<button class="btn out" ' + (NA.busy ? 'disabled' : '') + ' onclick="NAUI.addConsumer()">' + ic('plus', 17) + t('Add Consumer') + '</button>' + fallbackLink();
     return { body: body, title: t('Select Consumer') };
   };
-  NAUI.pickCons = function (cno) { NA.sel = cno; rerender(true); };
+  NAUI.pickCons = function (cno) { NA.sel = cno; NAUI.refreshCons(); var b = root().querySelector('#cons-go'); if (b) b.disabled = !!NA.busy; };
+  var namesToken = 0;
+  NAUI.loadNames = async function () {
+    if (!NA) return; var me = NA, tok = ++namesToken;
+    var todo = me.accounts.filter(function (c) { return !c.name && !(me.names[c.cno] && me.names[c.cno].st); }), idx = 0, got = 0, bad = 0;
+    async function worker() {
+      while (idx < todo.length && NA === me && tok === namesToken) {
+        var c = todo[idx++]; me.names[c.cno] = { st: 'loading', name: '' };
+        try { var r = await VS.fetchBill(c.cno); if (r && r.ok && r.name) { me.names[c.cno] = { st: 'ok', name: r.name }; got++; } else { me.names[c.cno] = { st: 'fail', name: '' }; bad++; } }
+        catch (e) { me.names[c.cno] = { st: 'fail', name: '' }; bad++; }
+        if (NA === me && NA.step === 'accounts') NAUI.refreshCons();
+      }
+    }
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    if (NA === me && todo.length) diag('page', 'consumer names', got > 0 || !todo.length, got + ' read from the official app service, ' + bad + ' without a name');
+  };
   NAUI.addConsumer = async function () {
     busy(t('Opening Add Consumer...'));
     var a = await act('click Add Consumer', function () { return Drv.d('click', SP.addConsumer); }, 7000);
@@ -434,6 +486,20 @@
     if (def && !NA.f.reason) NA.f.reason = def;
     if (!NA.f.mobile && NA.custMobile) NA.f.mobile = NA.custMobile;
   }
+  // Title + names. M/S (a firm / society): the Title and ONE single-line Name (the whole organisation name); no First / Middle / Last.
+  // Anything else: compact Title + First row and Middle + Last row. Names are always UPPERCASE.
+  function titleNames(F, titles) {
+    var sel = '<select class="inp" data-k="f.title"><option value="">' + t('Select') + '</option>' + titles.map(function (x) { return '<option ' + (F.title === x ? 'selected' : '') + ' value="' + esc(x) + '">' + esc(x) + '</option>'; }).join('') + '</select>';
+    var nm = function (key, val) { return 'class="inp" data-k="f.' + key + '" autocomplete="off" autocapitalize="characters" style="text-transform:uppercase" value="' + esc(val) + '"'; };
+    if (P.isMS(F.title)) {
+      return '<div class="field"><label>' + t('Title') + ' *</label>' + sel + '</div>' +
+        '<div class="field"><label>' + t('Name') + ' *</label><input ' + nm('first', F.first) + ' placeholder="' + t('Full Organisation Or Society Name') + '"></div>';
+    }
+    return '<div class="inprow"><div class="field" style="flex:0 0 36%"><label>' + t('Title') + ' *</label>' + sel + '</div>' +
+      '<div class="field" style="flex:1"><label>' + t('First Name') + ' *</label><input ' + nm('first', F.first) + '></div></div>' +
+      '<div class="inprow"><div class="field" style="flex:1"><label>' + t('Middle Name') + '</label><input ' + nm('middle', F.middle) + '></div>' +
+      '<div class="field" style="flex:1"><label>' + t('Last Name') + (F.req && F.req.last ? ' *' : '') + '</label><input ' + nm('last', F.last) + '></div></div>';
+  }
   NAUI.views.form = function () {
     var F = NA.f, n = fullName(), req = F.req || {};
     var titles = F.titles.length ? F.titles : [];
@@ -441,10 +507,7 @@
       '<div class="row between"><div class="sec" style="margin:0">' + t('New Consumer Details') + '</div><span id="nm-count" class="chip ' + (n.length >= P.NAME_MAX ? 'c-r' : 'c-c') + '">' + t('Name Length') + ': ' + n.length + ' / ' + P.NAME_MAX + '</span></div>' +
       '<div class="card" style="display:flex;flex-direction:column;gap:10px">' +
       (NA.old.length ? '<div class="small muted">' + NA.old.map(function (r) { return esc(r[0].replace(/[:*\s]+$/, '')) + ': <b>' + esc(r[1]) + '</b>'; }).join(' \u2022 ') + '</div>' : '') +
-      '<div class="inprow"><div class="field" style="flex:0 0 36%"><label>' + t('Title') + ' *</label><select class="inp" data-k="f.title"><option value="">' + t('Select') + '</option>' + titles.map(function (x) { return '<option ' + (F.title === x ? 'selected' : '') + ' value="' + esc(x) + '">' + esc(x) + '</option>'; }).join('') + '</select></div>' +
-      '<div class="field" style="flex:1"><label>' + t('First Name') + ' *</label><input class="inp" data-k="f.first" autocomplete="off" autocapitalize="words" value="' + esc(F.first) + '"></div></div>' +
-      '<div class="inprow"><div class="field" style="flex:1"><label>' + t('Middle Name') + '</label><input class="inp" data-k="f.middle" autocomplete="off" autocapitalize="words" value="' + esc(F.middle) + '"></div>' +
-      '<div class="field" style="flex:1"><label>' + t('Last Name') + (req.last ? ' *' : '') + '</label><input class="inp" data-k="f.last" autocomplete="off" autocapitalize="words" value="' + esc(F.last) + '"></div></div>' +
+      titleNames(F, titles) +
       '<div class="field"><label>' + t('Consumer Full Name (Auto)') + '</label><input class="inp" id="nm-full" readonly value="' + esc(n) + '"></div>' +
       '<div class="inprow"><div class="field" style="flex:1"><label>' + t('Email') + ' *</label><input class="inp" data-k="f.email" type="email" autocomplete="off" autocapitalize="off" value="' + esc(F.email) + '"></div>' +
       '<div class="field" style="flex:1"><label>' + t('Mobile') + ' *</label><input class="inp mono" data-k="f.mobile" inputmode="tel" maxlength="10" value="' + esc(F.mobile) + '"></div></div>' +
@@ -456,17 +519,19 @@
   NAUI.page1Next = async function () {
     readInputs(); var F = NA.f;
     if (!F.title) return fail(t('Select A Title'));
-    if (!F.first.trim()) return fail(t('Enter The First Name'));
-    if (NA.f.req.last && !F.last.trim()) return fail(t('Enter The Last Name'));
+    var ms = P.isMS(F.title);
+    if (ms) { F.middle = ''; F.last = ''; }
+    if (!F.first.trim()) return fail(ms ? t('Enter The Name') : t('Enter The First Name'));
+    if (!ms && NA.f.req.last && !F.last.trim()) return fail(t('Enter The Last Name'));
     if (fullName().length > P.NAME_MAX) return fail(t('Name Is Longer Than 50 Characters'));
     if (!P.validEmail(F.email)) return fail(t('Enter A Valid Email'));
     if (!P.validMobile(F.mobile)) return fail(t('Enter A Valid 10 Digit Mobile Number'));
     if (!F.reason) return fail(t('Select A Reason'));
     busy(t('Filling The Official Form...')); NA.failed = [];
     await fillSite('Title', SP.title, F.title, true);
-    await fillSite('First Name', SP.first, F.first.trim(), true);
-    if (F.middle.trim()) await fillSite('Middle Name', SP.middle, F.middle.trim(), true);
-    if (F.last.trim()) await fillSite('Last Name', SP.last, F.last.trim(), true);
+    await fillSite(ms ? 'Name' : 'First Name', SP.first, P.upName(F.first.trim()), true);
+    if (!ms && F.middle.trim()) await fillSite('Middle Name', SP.middle, F.middle.trim(), true);
+    if (!ms && F.last.trim()) await fillSite('Last Name', SP.last, F.last.trim(), true);
     await fillSite('Email', SP.email, F.email.trim(), true);
     await fillSite('Mobile', SP.mobile, F.mobile.trim(), true);
     await fillSite('Reason', SP.reason, F.reason, true);
@@ -480,20 +545,26 @@
     await NAUI.loadAadhaar();
   };
 
-  /* ---- page 2: Aadhaar (only what the official page offers) ---- */
+  /* ---- page 2: Aadhaar (only what the official page offers) ----
+   * v1.1.2: the number is typed into the official box key by key (its script masks the box and builds the real number from each key); the page's own
+   * alerts are shown as an ERROR under the button, and the linked-mobile box appears only when the page really returned a number. */
   NAUI.loadAadhaar = async function () {
     var s = await snap(); var A = NA.aad;
-    A.consent = false; A.sent = false; A.mobile = ''; A.msg = ''; A.verified = false; A.no = ''; A.otp = ''; A.done = false;
+    A.consent = false; A.sent = false; A.mobile = ''; A.last4 = ''; A.mobEdit = false; A.err = ''; A.msg = ''; A.verified = false; A.no = ''; A.otp = ''; A.mob = ''; A.done = false; A.tried = 0;
     var cons = await Drv.d('has', SP.aadConsent).catch(function () { return { ok: false }; });
-    var no = await Drv.d('has', SP.aadNo).catch(function () { return { ok: false }; });
+    var no = await Drv.d('has', SP.aadNo).catch(function () { return { ok: false }; });     // the number box is hidden until the consent tick: look for it even when hidden
     A.siteHas = !!(cons && cons.ok) || !!(no && no.ok);
     A.hasNo = !!(no && no.ok);
     var low = (s && s.text || '').split(/\n/).filter(function (l) { return /aadhaar|aadhar/i.test(l); });
     A.note = (low.filter(function (l) { return /optional|mandatory|compulsory|required/i.test(l); })[0] || low[0] || '').slice(0, 260);
-    A.optional = /optional/i.test(A.note) || !A.hasNo;
-    diag('page', 'aadhaar section', A.siteHas, 'consent=' + !!(cons && cons.ok) + ' number=' + A.hasNo + ' optional=' + A.optional);
+    var mand = await Drv.d('hid', 'hdnIsAadharMandatory').catch(function () { return { ok: false }; });
+    A.waived = P.aadhaarWaived(fullName());
+    if (mand && mand.ok) A.required = mand.v === 'Y' && !A.waived; else A.required = !/optional/i.test(A.note) && A.hasNo && !A.waived;
+    A.optional = !A.required;
+    diag('page', 'aadhaar section', A.siteHas, 'consent=' + !!(cons && cons.ok) + ' number=' + A.hasNo + ' mandatoryFlag=' + (mand && mand.ok ? mand.v : 'n/a') + ' waivedByName=' + A.waived + ' required=' + A.required);
     NA.busy = ''; setStep('aadhaar');
   };
+  function aadLive(no) { return no.length === 12 && !P.validAadhaar(no); }
   NAUI.views.aadhaar = function () {
     var A = NA.aad;
     var body = stepsBar() + errBox() + busyBox() + '<div class="sec">' + t('Aadhaar Authentication') + '</div>';
@@ -501,14 +572,20 @@
       body += '<div class="card empty">' + ic('shield', 28) + '<div>' + t('The Official Page Has No Aadhaar Step For This Consumer.') + '</div></div>';
     } else {
       body += (A.note ? '<div class="card small" style="color:var(--acc)">' + esc(A.note) + '</div>' : '') +
+        (A.required ? '<div class="chip c-a" style="align-self:flex-start">' + t('Aadhaar Verification Is Needed For This Consumer') + '</div>' : (A.waived ? '<div class="chip c-c" style="align-self:flex-start">' + t('Not Needed For This Name') + '</div>' : '')) +
         '<div class="card">' + tick('aad.consent', t('I Give My Consent To Use Aadhaar For Authentication.'), A.consent) + '</div>';
       if (A.consent && A.hasNo) {
+        var bad = aadLive(A.no);
         body += fld(t('Aadhaar Number'), 'aad.no', { mono: 1, inputmode: 'numeric', max: 12 }) +
-          '<button id="aad-gen" class="btn pri" ' + (A.no.length === 12 && !NA.busy ? '' : 'disabled') + ' onclick="NAUI.aadGen()">' + t('Generate OTP') + '</button>';
+          '<div id="aad-bad" class="tiny" style="color:var(--cr);' + (bad ? '' : 'display:none') + '">' + t('This Aadhaar Number Looks Invalid, Please Check') + '</div>' +
+          '<button id="aad-gen" class="btn pri" ' + (P.validAadhaar(A.no) && !NA.busy ? '' : 'disabled') + ' onclick="NAUI.aadGen()">' + t(A.sent ? 'Send OTP Again' : 'Generate OTP') + '</button>';
+        if (A.err) body += '<div class="warn" id="aad-err" style="border-color:rgba(200,80,70,.5)">' + ic('alert', 16) + '<div><b>' + t('The Official Site Said') + ':</b> ' + esc(A.err) + '<div style="margin-top:6px"><button class="btn ghost sm" onclick="NAUI.diag()">' + ic('info', 14) + t('Diagnostics') + '</button></div></div></div>';
         if (A.sent) {
-          body += '<div class="card glow"><div class="tiny muted">' + t('Aadhaar Linked Mobile (As Shown By The Official Site)') + '</div><div class="mono" style="font-size:20px;font-weight:700;margin-top:4px">' + esc(A.mobile || '-') + '</div>' +
-            (A.msg ? '<div class="tiny muted" style="margin-top:4px">' + esc(A.msg) + '</div>' : '') + '</div>' +
-            fld(t('Aadhaar OTP'), 'aad.otp', { mono: 1, inputmode: 'numeric', max: 8 }) +
+          if (A.mobile) body += '<div class="card glow"><div class="tiny muted">' + t('Aadhaar Linked Mobile (As Shown By The Official Site)') + '</div><div class="mono" style="font-size:20px;font-weight:700;margin-top:4px">' + esc(A.mobile) + '</div></div>';
+          else if (A.last4) body += '<div class="card"><div class="small">' + t('The Official Site Sent The OTP To A Mobile Ending') + ' <b class="mono">' + esc(A.last4) + '</b></div></div>';
+          if (A.msg) body += '<div class="card small acc">' + esc(A.msg) + '</div>';
+          if (!A.mobile && A.mobEdit) body += fld(t('Aadhaar Linked Mobile (10 Digits)'), 'aad.mob', { mono: 1, inputmode: 'numeric', max: 10, req: 1 });
+          body += fld(t('Aadhaar OTP'), 'aad.otp', { mono: 1, inputmode: 'numeric', max: 8 }) +
             '<button class="btn pri" ' + (NA.busy ? 'disabled' : '') + ' onclick="NAUI.aadVerify()">' + t('Verify') + '</button>' +
             (A.verified ? '<div class="chip c-a">' + ic('check', 12) + ' ' + t('Verified') + '</div>' : '');
         }
@@ -519,52 +596,85 @@
     return { body: body, title: t('Aadhaar') };
   };
   NAUI.aadConsent = async function () {
-    var A = NA.aad; A.sent = false; A.verified = false; busy(t('Updating The Official Page...'));
+    var A = NA.aad; A.sent = false; A.verified = false; A.err = ''; busy(t('Updating The Official Page...'));
     await fillSite('Aadhaar Consent', SP.aadConsent, A.consent, false);
     await sleep(500);
     var no = await Drv.d('has', SP.aadNo).catch(function () { return { ok: false }; });
     A.hasNo = !!(no && no.ok); NA.busy = ''; rerender(true);
   };
-  async function aadButtons() {
-    var gen = { any: ['generate otp', 'get otp', 'send otp', 'aadhaar otp', 'aadhar otp'], not: ['verify', 'submit'], after: SP.aadNo };
-    var ver = { any: ['verify', 'validate', 'authenticate', 'confirm otp', 'submit otp'], not: ['generate', 'resend'], after: SP.aadNo };
-    return { gen: gen, ver: ver };
+  function aadBtns() {
+    return { gen: { ids: ['btnUIDAIGenerateOTP'], any: ['generate otp', 'get otp', 'send otp'], not: ['verify', 'submit', 'regenerate'], noNav: true, after: SP.aadNo },
+             ver: { ids: ['btnUIDAIVerifyOTP'], any: ['verify otp', 'verify', 'validate', 'authenticate', 'confirm otp'], not: ['generate', 'resend'], noNav: true, after: SP.aadNo } };
   }
+  async function aadState() { return Drv.d('aadhaarState').catch(function () { return {}; }); }
   NAUI.aadGen = async function () {
-    readInputs(); var A = NA.aad; if (A.no.length !== 12) return;
+    readInputs(); var A = NA.aad; A.err = ''; A.tried++;
+    if (!P.validAadhaar(A.no)) { return fail(t('This Aadhaar Number Looks Invalid, Please Check')); }
     busy(t('Asking The Official Site To Send The Aadhaar OTP...'));
-    var before = (await snap() || {}).text || '';
-    await fillSite('Aadhaar Number', SP.aadNo, A.no, true);
-    var b = await aadButtons();
+    await Drv.msgs(); await Drv.ev('__vsd.drain()').catch(function () {});
+    var fr = await Drv.d('fillAadhaar', A.no).catch(function (e) { return { ok: false, err: e.message }; });   // typed key by key; only lengths come back
+    diag('aadhaar', 'typed into the official box', fr && fr.ok, 'typed length ' + (fr && fr.typed) + ' sent ' + (fr && fr.sent) + ' | box #' + ((fr && fr.id) || '?') + ' via ' + ((fr && fr.via) || '?') + ' | shows ' + (fr && fr.shown) + ' chars (masked ' + (fr && fr.masked ? 'yes' : 'no') + ') | hidden #' + ((fr && fr.hidId) || '-') + ' holds ' + (fr && fr.hidLen) + ' digits' + ((fr && fr.err) ? ' | ' + fr.err : ''));
+    if (!fr || !fr.ok) { A.err = t('The App Could Not Enter The Aadhaar Number On The Official Page.') + ' (' + t('Typed') + ' ' + ((fr && fr.typed) || 0) + ', ' + t('Official Page Holds') + ' ' + (fr && fr.hidLen >= 0 ? fr.hidLen : '?') + ')'; return fail(A.err); }
+    await sleep(900);                                                  // the page may fetch the linked mobile on its own while / after the number is typed
+    var st0 = await aadState();
+    var b = aadBtns();
     var a = await act('click Aadhaar Generate OTP', function () { return Drv.d('click', b.gen); }, 6000);
-    if (a.r && a.r.ok === false) return fail(t('Could Not Find The Aadhaar Generate OTP Button'));
-    await sleep(900);
-    var s = await snap(); var delta = deltaLines(before, s && s.text).join(' \u2022 ');
-    var all = a.msgs.concat([delta]).join(' ');
-    A.mobile = P.aadhaarMobileText(all); A.msg = (a.msgs.join(' ') || delta).slice(0, 240); A.sent = true;
-    diag('aadhaar', 'otp sent', !!A.mobile, 'mobile shown: ' + (A.mobile ? 'yes' : 'no'));
-    var errs = siteErrors(s, []);
-    NA.busy = ''; if (!A.mobile && !A.msg && errs.length) A.msg = errs[0]; rerender(true);
+    if (a.r && a.r.ok === false) { diag('aadhaar', 'generate button', false, (a.r && a.r.err) || 'not found'); return fail(t('Could Not Find The Aadhaar Generate OTP Button')); }
+    var st = {}, t0 = Date.now(), rep = P.aadhaarReply(a.msgs), allMsgs = a.msgs.slice();
+    for (;;) {                                                         // wait (up to ~10 s) for the page's answer: an alert, or the mobile box filling
+      st = await aadState();
+      var more = []; await pullMsgs(more); more.forEach(function (x) { if (allMsgs.indexOf(x) < 0) allMsgs.push(x); });
+      rep = P.aadhaarReply(allMsgs);
+      if (rep.error || st.mob || (st.last4 && rep.ok) || Date.now() - t0 > 10000) break;
+      if (rep.ok && Date.now() - t0 > 2500) break;
+      await sleep(500);
+    }
+    diag('aadhaar', 'generate result', !rep.error && (rep.ok || !!st.last4), 'button #' + (st.genId || '?') + ' | site messages: ' + (allMsgs.length ? allMsgs.join(' / ') : '(none)') + ' | mobile box ' + (st.mob ? 'filled' : 'empty') + ' (#' + (st.mobId || '?') + ', ' + (st.mobEditable ? 'editable' : 'read only') + ') | last-4 sent by site: ' + (st.last4 ? 'yes' : 'no') + ' | OTP row ' + (st.row2Vis ? 'shown' : 'hidden'));
+    if (rep.error || (!rep.ok && !st.last4 && !st.mob)) {
+      A.sent = false; A.mobile = ''; A.last4 = '';
+      A.err = rep.error || t('No Answer From The Official Site. Check The Number And Try Again.');
+      NA.busy = ''; return rerender(true);
+    }
+    A.sent = true; A.mobile = st.mob || ''; A.last4 = st.last4 || ''; A.mobEdit = !st.mob && !!st.mobEditable; A.msg = (rep.text || '').slice(0, 240);
+    NA.busy = ''; rerender(true);
   };
   NAUI.aadVerify = async function () {
-    readInputs(); var A = NA.aad; if (!A.otp.trim()) return fail(t('Enter The OTP'));
+    readInputs(); var A = NA.aad; A.err = ''; if (!A.otp.trim()) return fail(t('Enter The OTP'));
+    if (A.mobEdit && !A.mobile) {
+      if (!/^[6-9]\d{9}$/.test(A.mob.trim())) return fail(t('Enter The 10 Digit Aadhaar Linked Mobile Number'));
+      if (A.last4 && A.mob.trim().slice(-4) !== A.last4) return fail(t('This Mobile Does Not End With The Digits The Official Site Gave'));
+    }
     busy(t('Verifying With The Official Site...'));
+    await Drv.msgs(); await Drv.ev('__vsd.drain()').catch(function () {});
     var before = (await snap() || {}).text || '';
-    var f = await Drv.d('fill', { tag: 'input', any: ['aadhaar otp', 'aadhar otp', 'aadotp', 'otp'], notType: NOT_BOX, editable: true, after: SP.aadNo }, A.otp.trim());
-    diag('field', 'Aadhaar OTP', f && f.ok, (f && f.err) || '');
+    if (A.mobEdit && !A.mobile) { var mr = await Drv.d('fillAadhaarMobile', A.mob.trim()).catch(function () { return { ok: false }; }); diag('aadhaar', 'typed linked mobile', mr && mr.ok, 'length ' + A.mob.trim().length); }
+    var f = await Drv.d('fill', { ids: ['txtUIDAIOTP'], tag: 'input', any: ['aadhaar otp', 'aadhar otp', 'aadotp', 'enter otp', 'otp'], notType: NOT_BOX, editable: true, after: SP.aadNo }, A.otp.trim());
+    diag('field', 'Aadhaar OTP', f && f.ok, (f && f.err) || ('#' + ((f && f.matched && f.matched.id) || '?')));
     if (!f || !f.ok) return fail(t('Could Not Find The Aadhaar OTP Box'));
-    var b = await aadButtons();
+    var b = aadBtns();
     var a = await act('click Aadhaar Verify', function () { return Drv.d('click', b.ver); }, 6000);
-    await sleep(800);
+    if (a.r && a.r.ok === false) return fail(t('Could Not Find The Aadhaar Verify Button'));
+    var st = {}, t0 = Date.now(), all = a.msgs.slice();
+    for (;;) { st = await aadState(); var more = []; await pullMsgs(more); more.forEach(function (x) { if (all.indexOf(x) < 0) all.push(x); }); if (st.authed === 'Y' || all.length || Date.now() - t0 > 8000) break; await sleep(500); }
     var s = await snap(); var delta = deltaLines(before, s && s.text).join(' \u2022 ');
-    var said = (a.msgs.join(' ') + ' ' + delta).trim();
-    A.msg = said.slice(0, 240); wipeAad(); A.no = '';
-    A.verified = /verif|success|authenticat|valid/i.test(said) && !/not|fail|wrong|invalid|incorrect/i.test(said);
-    NA.busy = ''; if (!A.verified && !said) NA.err = t('No Answer From The Official Site. Check And Try Again.'); rerender(true);
+    var rep = P.aadhaarReply(all);
+    A.verified = st.authed === 'Y';
+    diag('aadhaar', 'verify result', A.verified, 'button #' + (st.verId || '?') + ' | authenticated flag ' + (st.authed || '?') + ' | site messages: ' + (all.length ? all.join(' / ') : '(none)'));
+    A.msg = A.verified ? (rep.text || t('Verified')).slice(0, 240) : ''; wipeAad(); A.no = ''; A.otp = '';
+    if (!A.verified) A.err = rep.error || rep.text || delta.slice(0, 240) || t('No Answer From The Official Site. Check And Try Again.');
+    NA.busy = ''; rerender(true);
   };
   // Aadhaar number and OTP live only while this page is open: wipe the boxes too, or the next re-render would read them back
-  function wipeAad() { var A = NA.aad; A.no = ''; A.otp = ''; Array.prototype.forEach.call(root().querySelectorAll('[data-k^="aad."]'), function (e) { if (e.type !== 'checkbox') e.value = ''; }); }
-  NAUI.aadNext = function () { readInputs(); wipeAad(); NA.busy = ''; NAUI.toConfirm(); };
+  function wipeAad() { var A = NA.aad; A.no = ''; A.otp = ''; Array.prototype.forEach.call(root().querySelectorAll('[data-k="aad.no"],[data-k="aad.otp"]'), function (e) { e.value = ''; }); }
+  NAUI.aadNext = async function () {
+    readInputs(); var A = NA.aad;
+    if (A.required && !A.verified) return fail(t('Aadhaar Verification Needed'));
+    if (A.verified && A.mobEdit && !A.mobile) {   // the official page wants the linked mobile typed in before it will accept the form
+      var st = await aadState();
+      if (st.mobEditable && !st.mob && /^[6-9]\d{9}$/.test(A.mob.trim())) await Drv.d('fillAadhaarMobile', A.mob.trim()).catch(function () {});
+    }
+    A.mob = ''; wipeAad(); NA.busy = ''; NAUI.toConfirm();
+  };
 
   /* ---- page 3: declaration, place, OTP, submit ---- */
   NAUI.toConfirm = async function () {
@@ -582,7 +692,7 @@
       fld(t('Place'), 'p3.place', { cap: 'words' }) +
       '<button class="btn out" ' + (NA.busy ? 'disabled' : '') + ' onclick="NAUI.genOtp()">' + ic('msg', 17) + (P3.sent ? t('Resend OTP') : t('Generate OTP (Mobile + Email)')) + '</button>';
     if (P3.sent) {
-      body += (P3.msg ? '<div class="card small acc">' + esc(P3.msg) + '</div>' : '');
+      body += (P3.msg ? '<div class="card small acc"><div class="tiny muted">' + t('OTP Sent To') + '</div>' + esc(P3.msg) + '</div>' : '');
       body += P3.otpFields.length ? P3.otpFields.map(function (f) {
         return '<div class="field"><label>' + esc(String(f.label).replace(/[:*]+\s*$/, '').trim() || t('OTP')) + '</label><input class="inp mono" data-otp="' + f.i + '" inputmode="numeric" maxlength="8" autocomplete="off" value="' + esc(P3.otp[f.i] || '') + '"></div>';
       }).join('') : '<div class="warn">' + ic('alert', 16) + '<div>' + t('No OTP Box Found On The Official Page. Open The Official Page For This Step.') + '</div></div>';
@@ -595,12 +705,14 @@
     readInputs(); var P3 = NA.p3;
     busy(t('Asking The Official Site To Send The OTP...'));
     var before = (await snap() || {}).text || '';
-    var a = await act('click Generate OTP', function () { return Drv.d('click', { any: ['generate otp', 'get otp', 'send otp', 'resend otp'], not: ['aadhaar', 'aadhar', 'verify', 'submit'], last: true }); }, 6000);
+    var a = await act('click Generate OTP', function () { return Drv.d('click', { ids: ['SubmitButton2'], notIds: ['btnUIDAIGenerateOTP', 'btnUIDAIVerifyOTP'], any: ['generate otp', 'get otp', 'send otp', 'resend otp'], not: ['aadhaar', 'aadhar', 'verify', 'submit'], noNav: true, last: true }); }, 6000);
     if (a.r && a.r.ok === false) return fail(t('Could Not Find The Generate OTP Button'));
     await sleep(900);
+    var more = []; await pullMsgs(more); more.forEach(function (x) { if (a.msgs.indexOf(x) < 0) a.msgs.push(x); });
     var s = await snap();
     var delta = deltaLines(before, s && s.text).join(' \u2022 ');
-    P3.msg = (a.msgs.join(' ') || delta).slice(0, 260);
+    P3.msg = (a.msgs.join(' ') || delta).slice(0, 400);   // the official page's own pop-up: where the OTP went (mobile / email), exactly as it words it
+    diag('page', 'otp pop-up', !!P3.msg, 'button #' + ((a.r && a.r.id) || '?') + ' | ' + (P3.msg || '(no pop-up text)'));
     P3.otpFields = otpFieldsOf(s || { fields: [] }).map(function (f) { return { i: f.i, label: f.label || f.id || f.name, id: f.id, name: f.name }; });
     P3.sent = true; NA.busy = ''; diag('page', 'otp fields', P3.otpFields.length > 0, P3.otpFields.map(function (f) { return f.label; }).join(' / ')); rerender(true);
   };
@@ -937,7 +1049,7 @@
   NAUI.routeByPage = async function (msgs) {
     busy(t('Reading The Official Page...'));
     var w = await classify();
-    if (w.kind === 'accounts') { NA.accounts = w.cons.map(function (c) { return { cno: c.cno, text: c.text, cells: c.cells }; }); NA.busy = ''; return setStep('accounts'); }
+    if (w.kind === 'accounts') { NA.accounts = w.cons.map(function (c) { return { cno: c.cno, text: c.text, cells: c.cells, name: c.name || '' }; }); NA.busy = ''; setTimeout(function () { NAUI.loadNames(); }, 50); return setStep('accounts'); }
     if (w.kind === 'form') { await readFormPage(w.s); NA.busy = ''; return setStep('form'); }
     if (w.kind === 'upload' && NA.appNo) return NAUI.toDocs();
     if (w.kind === 'login') { NA.err = t('Session Expired. Please Login Again.'); return NAUI.toLogin(); }
@@ -967,6 +1079,8 @@
     if (s) body += '<div class="card tiny" style="user-select:text"><b>' + t('Current Official Page') + '</b><br>' + esc(s.title || '') + '<br>' + esc((s.url || '').replace(/[?#].*$/, '')) +
       '<br><br><b>' + t('Fields') + ':</b> ' + s.fields.map(function (f) { return esc((f.label || f.id || f.name) + (f.ro ? ' [ro]' : '') + ' <' + f.type + '>'); }).join('; ') +
       '<br><br><b>' + t('Buttons') + ':</b> ' + s.buttons.map(function (b) { return esc(b.t); }).join('; ') + '</div>';
+    var aad = ((NA && NA.diag) || []).filter(function (d) { return d.kind === 'aadhaar' || d.step === 'aadhaar'; }).slice(-12);
+    if (aad.length) body += '<div class="sec">' + t('Aadhaar Step') + '</div><div class="card tiny" style="user-select:text;padding:6px 10px"><div class="muted" style="padding-bottom:4px">' + t('Lengths And Element Names Only. The Number, Mobile And OTP Are Never Shown Here.') + '</div>' + aad.map(function (d) { return '<div style="padding:4px 0;border-bottom:1px solid var(--line);color:' + (d.ok ? 'inherit' : 'var(--cr)') + '">' + (d.ok ? '\u2714' : '\u2716') + ' ' + esc(d.kind) + ': ' + esc(d.what) + (d.detail ? '<br><span class="muted">' + esc(d.detail) + '</span>' : '') + '</div>'; }).join('') + '</div>';
     body += '<div class="sec">' + t('Step Log') + '</div><div class="card tiny" style="user-select:text;padding:6px 10px">' + (log.length ? log.slice(0, 60).map(function (d) {
       return '<div style="padding:4px 0;border-bottom:1px solid var(--line);color:' + (d.ok ? 'inherit' : 'var(--cr)') + '">' + (d.ok ? '\u2714' : '\u2716') + ' <b>' + esc(d.step) + '</b> \u2022 ' + esc(d.kind) + ': ' + esc(d.what) + (d.detail ? '<br><span class="muted">' + esc(d.detail) + '</span>' : '') + '</div>';
     }).join('') : t('Nothing Yet')) + '</div>' +
@@ -974,7 +1088,7 @@
     return page(hdrBack(t('Diagnostics'), ''), body, false);
   };
   NAUI.copyReport = function () {
-    var s = NA.dsnap, rep = 'VidyutSewa 1.1.1 diagnostics\nstep: ' + NA.step + '\n' + (s ? 'page: ' + s.title + ' ' + (s.url || '').replace(/[?#].*$/, '') + '\nfields: ' + s.fields.map(function (f) { return (f.label || f.id || f.name) + '<' + f.type + '>'; }).join('; ') + '\nbuttons: ' + s.buttons.map(function (b) { return b.t; }).join('; ') + '\n' : '') +
+    var s = NA.dsnap, rep = 'VidyutSewa 1.1.2 diagnostics\nstep: ' + NA.step + '\n' + (function () { var ad = NA.diag.filter(function (d) { return d.kind === 'aadhaar' || d.step === 'aadhaar'; }).slice(-12); return ad.length ? 'AADHAAR STEP (lengths and element names only)\n' + ad.map(function (d) { return (d.ok ? 'OK ' : 'FAIL ') + d.kind + ' ' + d.what + ' ' + d.detail; }).join('\n') + '\n' : ''; })() + (s ? 'page: ' + s.title + ' ' + (s.url || '').replace(/[?#].*$/, '') + '\nfields: ' + s.fields.map(function (f) { return (f.label || f.id || f.name) + '<' + f.type + '>'; }).join('; ') + '\nbuttons: ' + s.buttons.map(function (b) { return b.t; }).join('; ') + '\n' : '') +
       NA.diag.slice(-60).map(function (d) { return (d.ok ? 'OK ' : 'FAIL ') + d.step + ' ' + d.kind + ' ' + d.what + ' ' + d.detail; }).join('\n');
     Native.call('copy', { text: rep }).then(function () { toast(t('Copied')); }).catch(function () {});
   };

@@ -3,8 +3,8 @@
  * It never submits, uploads or pays by itself: the app calls click() only after the person's own tap. */
 (function () {
   'use strict';
-  if (window.__vsd && window.__vsd.v === 4) return;
-  var D = { v: 4, msgs: [], opened: [], els: [] };
+  if (window.__vsd && window.__vsd.v === 5) return;
+  var D = { v: 5, msgs: [], opened: [], els: [] };
   window.__vsd = D;
 
   function norm(s) { return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9\/]+/g, '').replace(/\//g, ''); }
@@ -87,6 +87,7 @@
 
   // ---------- matching ----------
   function score(c, spec) {
+    if (spec.ids && c.id && spec.ids.indexOf(c.id) >= 0) return 200;                 // an exact element id always wins over any label
     var L = norm(c.label), I = norm(c.id), N = norm(c.name), P = norm(c.ph), C = norm(c.ctx), best = 0;
     (spec.any || []).forEach(function (raw) {
       var n = norm(raw); if (!n) return; var s = 0;
@@ -147,6 +148,67 @@
       opts.filter(function (o) { return w && t(o).indexOf(w) >= 0; })[0] || null;
     return hit;
   }
+
+  // Real typing, character by character, the way a person (or a phone keyboard) does it: focus, keydown, keypress, one 'input' event per
+  // character (the official page's Aadhaar box masks itself and rebuilds the hidden number from each single keystroke), keyup, then change + blur.
+  function isAadNoBox(el) { return el.id === 'txtAadharNo' || el.name === 'txtAadharNo'; }   // ONLY the number box (the linked-mobile and OTP boxes also carry 'aadhar' in their names)
+  function clearTyped(el) {
+    try { if (typeof window.clearAadhaarInput === 'function' && isAadNoBox(el)) { window.clearAadhaarInput(); return; } } catch (e) {}
+    setNative(el, '');
+    try { el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward', data: null })); } catch (e) { fire(el, ['input']); }
+  }
+  function typeReal(el, str) {
+    str = String(str);
+    el.focus && el.focus();
+    clearTyped(el);
+    var sent = 0;
+    for (var i = 0; i < str.length; i++) {
+      var ch = str.charAt(i);
+      if (el.maxLength > 0 && el.maxLength < 100000 && el.value.length >= el.maxLength && !isAadNoBox(el)) break;
+      var kc = /\d/.test(ch) ? 48 + (+ch) : ch.toUpperCase().charCodeAt(0);
+      var init = { key: ch, code: /\d/.test(ch) ? 'Digit' + ch : '', keyCode: kc, which: kc, bubbles: true, cancelable: true };
+      var go = el.dispatchEvent(new KeyboardEvent('keydown', init));
+      if (!go) continue;                                              // the page refused this key, exactly as it would for a real keypress
+      el.dispatchEvent(new KeyboardEvent('keypress', init));
+      setNative(el, el.value + ch);
+      try { el.dispatchEvent(new InputEvent('input', { bubbles: true, data: ch, inputType: 'insertText' })); } catch (e) { fire(el, ['input']); }
+      el.dispatchEvent(new KeyboardEvent('keyup', init));
+      sent++;
+    }
+    fire(el, ['change']);
+    el.blur && el.blur(); fire(el, ['blur', 'focusout']);
+    return sent;
+  }
+  function elById(id) { return document.getElementById(id); }
+  // Aadhaar number: type it into the official box (exact id first, then the label match), then prove it landed: the official page keeps the
+  // real digits in a hidden field. Only lengths ever leave this function, never the number.
+  D.fillAadhaar = function (value, spec) {
+    var el = elById('txtAadharNo'), via = 'id';
+    if (!el || !vis(el)) { var f = D.find(spec || { any: ['aadhaar number', 'aadhar number', 'aadhaar', 'aadhar'], tag: 'input', notType: ['checkbox', 'radio', 'button', 'submit', 'file'], editable: true }); el = f.el; via = 'label'; }
+    if (!el) return { ok: false, err: 'aadhaar box not found' };
+    var v = String(value == null ? '' : value).replace(/\D/g, '');
+    var sent = typeReal(el, v);
+    var hid = elById('hdnAadharNum');
+    var shown = String(el.value || '').length;
+    var hidLen = hid ? String(hid.value || '').length : -1;
+    var landed = hid ? (hidLen === v.length) : (String(el.value || '').replace(/\D/g, '') === v);
+    return { ok: landed && sent === v.length, via: via, id: el.id, name: el.name, typed: v.length, sent: sent, shown: shown, hidId: hid ? hid.id : '', hidLen: hidLen, masked: !!hid && el.value !== v, landed: landed };
+  };
+  // State of the official Aadhaar panel after Generate OTP, from exact ids (no number inside).
+  D.aadhaarState = function () {
+    function val(id) { var e = elById(id); return e ? String(e.value || '') : ''; }
+    var mobEl = elById('txtAadharMobNo'), row = elById('trAadharMobNo'), r2 = elById('TR_UIDAI_2'), gen = elById('btnUIDAIGenerateOTP'), ver = elById('btnUIDAIVerifyOTP');
+    var rowVis = row ? window.getComputedStyle(row).visibility !== 'hidden' && vis(row) : false;
+    return { mob: val('txtAadharMobNo'), mobEditable: !!(mobEl && !mobEl.readOnly && !mobEl.disabled), mobId: mobEl ? mobEl.id : '', rowVis: rowVis, row2Vis: !!(r2 && vis(r2)), last4: val('aadharmobno4digit'),
+      genId: gen ? gen.id : '', verId: ver ? ver.id : '', hdnLen: val('hdnAadharNum').length, authed: val('hdnIsAadharAuthenticated') };
+  };
+  // Typed into the Aadhaar-linked mobile box when the official page leaves it editable (its own check wants the last 4 digits to match)
+  D.fillAadhaarMobile = function (value) {
+    var el = elById('txtAadharMobNo'); if (!el) return { ok: false, err: 'mobile box not found' };
+    if (el.readOnly) return { ok: true, skipped: 'readonly' };
+    var v = String(value || '').replace(/\D/g, '').slice(-10); typeReal(el, v);
+    return { ok: String(el.value || '').replace(/\D/g, '') === v, len: v.length };
+  };
   function applyValue(el, v) {
     var tg = el.tagName.toLowerCase(), ty = (el.type || '').toLowerCase();
     if (tg === 'select') {
@@ -159,6 +221,7 @@
       if (el.checked !== want) el.click();
       return { ok: el.checked === want };
     }
+    if (/aadh?a?r|uidai/i.test(el.id + el.name) && /^\d+$/.test(String(v))) { var n = typeReal(el, v); return { ok: n === String(v).length, typed: n }; }
     el.focus && el.focus();
     setNative(el, String(v));
     fire(el, ['input', 'keydown', 'keypress', 'keyup', 'change']);
@@ -178,6 +241,8 @@
     var el = f.el, ty = (el.type || '').toLowerCase();
     return { ok: true, value: ty === 'checkbox' || ty === 'radio' ? !!el.checked : (el.tagName === 'SELECT' ? clip(el.options[el.selectedIndex] ? el.options[el.selectedIndex].text : '', 80) : el.value), ro: !!el.readOnly, matched: brief(fieldInfo(el, -1)) };
   };
+  // value of any element by id (hidden fields too): only for small flags such as hdnIsAadharMandatory / hdnIsAadharAuthenticated
+  D.hid = function (id) { var e = document.getElementById(id); return e ? { ok: true, v: String(e.value == null ? '' : e.value).slice(0, 40) } : { ok: false, v: null }; };
   D.has = function (spec) { var f = D.find(spec); return f.el ? { ok: true, matched: brief(fieldInfo(f.el, -1)), top: f.top } : { ok: false }; };
   D.options = function (spec) { var f = D.find(spec); if (!f.el || f.el.tagName !== 'SELECT') return { ok: false }; return { ok: true, options: Array.prototype.map.call(f.el.options, function (o) { return { v: o.value, t: clip(o.text, 90) }; }), matched: brief(fieldInfo(f.el, -1)) }; };
 
@@ -186,14 +251,15 @@
     var res = [];
     allButtons().forEach(function (el, k) {
       var t = btnText(el), T = norm(t), I = norm(el.id), N = norm(el.name), s = 0;
-      if (spec.noNav && inNav(el)) return;                       // menu links such as the left-nav "Login" are never the form's button
-      (spec.ids || []).forEach(function (raw) { if (el.id && el.id === raw) s = Math.max(s, 200); });   // exact element id wins over any label
+      if (spec.noNav && inNav(el)) return;
+      if (spec.notIds && el.id && spec.notIds.indexOf(el.id) >= 0) return;                // e.g. the Aadhaar Generate OTP button is never the final-page OTP button                       // menu links such as the left-nav "Login" are never the form's button
+      var idHit = false; (spec.ids || []).forEach(function (raw) { if (el.id && el.id === raw) { s = Math.max(s, 200); idHit = true; } });   // exact element id wins over any label
       (spec.any || []).forEach(function (raw) {
         var n = norm(raw); if (!n) return; var x = 0;
         if (T === n) x = 100; else if (I === n || N === n) x = 90; else if (T.indexOf(n) === 0) x = 80; else if (T.indexOf(n) >= 0) x = 65; else if (I.indexOf(n) >= 0 || N.indexOf(n) >= 0) x = 55;
         if (x > s) s = x;
       });
-      (spec.not || []).forEach(function (raw) { var n = norm(raw); if (n && (T.indexOf(n) >= 0 || I.indexOf(n) >= 0)) s -= 200; });
+      if (!idHit) (spec.not || []).forEach(function (raw) { var n = norm(raw); if (n && (T.indexOf(n) >= 0 || I.indexOf(n) >= 0)) s -= 200; });   // an exact id is never vetoed by a word in its own name
       if (el.disabled) s -= 30;
       if (s >= 50) res.push({ s: s, k: k, el: el, t: t });
     });
@@ -278,8 +344,11 @@
       if (!m) return;
       var pick = tr.querySelector('input[type=radio],input[type=checkbox]') || tr.querySelector('a[href],a[onclick]');
       var cells = cellsOf(tr).filter(Boolean);
+      // the official list keeps the consumer NAME in the tooltip (title) of the number cell
+      var nameCell = Array.prototype.slice.call(tr.cells || []).filter(function (td) { return td.title && td.textContent.indexOf(m[1]) >= 0; })[0] || tr.querySelector('td[title]');
+      var nm = nameCell ? clip(nameCell.title, 60) : ''; if (!nm || nm === m[1] || /view|photo|bill/i.test(nm) || /^\d+$/.test(nm)) nm = '';
       D.els.push(pick || tr);
-      out.push({ i: D.els.length - 1, cno: m[1], cells: cells.slice(0, 8), text: clip(t, 200), radio: !!(pick && pick.type === 'radio'), checked: !!(pick && pick.checked) });
+      out.push({ i: D.els.length - 1, cno: m[1], name: nm, cells: cells.slice(0, 8), text: clip(t, 200), radio: !!(pick && pick.type === 'radio'), checked: !!(pick && pick.checked) });
     });
     return out;
   };

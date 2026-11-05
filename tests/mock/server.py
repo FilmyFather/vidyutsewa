@@ -18,9 +18,12 @@ def S(h):
     sid = m.group(1) if m else None
     if not sid or sid not in SESS:
         sid = '%08x' % random.getrandbits(32)
-        SESS[sid] = {'cap': '', 'auth': False, 'otp_sent': False, 'uploaded': {}, 'rcpt_polls': 0, 'sid': sid, 'consumers': [
+        _cons = [
             {'no': '092236112147', 'bu': '4960', 'name': 'TABASSUM NISHA', 'cat': 'LT-I Residential 1Ph' if VARIANT == 'resident' else 'LT-II Commercial'},
-            {'no': '170012345678', 'bu': '3031', 'name': 'RAMESH KUMAR', 'cat': 'LT-I Residential 1Ph'}]}
+            {'no': '170012345678', 'bu': '3031', 'name': 'RAMESH KUMAR', 'cat': 'LT-I Residential 1Ph'}]
+        for _i in range(int(os.environ.get('MOCK_CONS', '2')) - 2):     # long list for the search / scroll tests
+            _cons.append({'no': '1%011d' % (500000 + _i * 37), 'bu': '4%03d' % (_i % 900), 'name': ['SURESH PATIL', 'MEENA SHAH', 'GANESH MANDAL', 'ANITA DESHMUKH', 'JAI LAXMI SOCIETY'][_i % 5] + ' ' + chr(65 + _i % 26), 'cat': 'LT-I Residential 1Ph'})
+        SESS[sid] = {'cap': '', 'auth': False, 'otp_sent': False, 'uploaded': {}, 'rcpt_polls': 0, 'sid': sid, 'consumers': _cons}
     return sid, SESS[sid]
 
 CSS = "<style>body{font-family:Arial;font-size:13px;margin:8px}table{border-collapse:collapse;width:100%}td,th{padding:4px;border:1px solid #ddd;vertical-align:middle}.hd{background:#4a7fb5;color:#fff;padding:3px 8px;font-weight:bold}.err{color:red;font-weight:bold}input[readonly]{background:#e8e8e8}.btn{background:#c33;color:#fff;border:0;padding:5px 12px}</style>"
@@ -68,7 +71,7 @@ function post(u,b,cb){fetch(u,{method:'POST',headers:{'Content-Type':'applicatio
 function validateLoginForm(){var l=document.getElementById('loginId').value,p=document.getElementById('password').value,c=document.getElementById('txtInput').value;
  if(!l||!p||!c){alert('Enter Login Name, Password and Captcha First');return false}
  post('wss?uiActionName=validateLoginIdAndPassword&IsAjax=true','LoginId='+encodeURIComponent(l)+'&Password='+encodeURIComponent('ENC:'+p.split('').reverse().join(''))+'&txtInput='+encodeURIComponent(c),function(res){
-  if(res.indexOf('true')==0){var t=res.split('#');document.getElementById('lblMaskedEmail1').innerHTML='Email ID: '+t[1];document.getElementById('lblMaskedMobNo1').innerHTML='Mobile Number: '+t[2];
+  if(res.indexOf('true')==0){var t=res.split('#');alert('OTP has been successfully sent to following contact details. Email ID: '+t[1]+' Mobile Number: '+t[2]);document.getElementById('lblMaskedEmail1').innerHTML='Email ID: '+t[1];document.getElementById('lblMaskedMobNo1').innerHTML='Mobile Number: '+t[2];
    document.getElementById('loginButton').style.visibility='hidden';document.getElementById('tblOTP').style.visibility='visible'}
   else if(res.indexOf('Invalid_Captcha')==0){drawCap(res.substring(15,21));alert('Invalid Captcha')}
   else if(res.indexOf('false')==0){drawCap(res.substring(5,11));alert('Invalid login name or password.')}
@@ -99,12 +102,12 @@ def page_login(sess, msg='', otp=False):
     return CSS + LOGIN % {'capcell': capcell, 'capjs': capjs, 'otp': extra}
 
 def page_account(sess):
-    rows = ''.join('<tr><td><input type="radio" name="consumerSel" value="%s" id="rd%d"></td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>' % (c['no'], i, c['name'], c['cat'], c['no'], c['bu']) for i, c in enumerate(sess['consumers']))
+    rows = ''.join('<tr><td><input type="radio" name="consumerSel" id="radCustList" value="%s" onclick="radioCheck(this)"></td><td %s style="width:100px">%s</td><td class="right">%s</td><td class="left">%s</td><td>LT</td><td class="right">Oct 2026</td><td class="right">175</td><td class="right">1910</td><td class="right">02 Nov 2026</td></tr>' % (c['no'], ('' if os.environ.get('MOCK_NONAME') else 'title="%s"' % c['name']), c['no'], c['bu'], 'VASAI RD. URBAN S/DN') for i, c in enumerate(sess['consumers']))
     return CSS + """<div>Welcome, <b>Yuvi Shop</b> | <a href="wss?uiActionName=logout">Logout</a></div><div class="hd">My Account</div>
-<form id="acc" method="post" action="wss"><input type="hidden" name="uiActionName" id="ua"><table><tr><th></th><th>Account Name</th><th>Consumer Type</th><th>Consumer Number</th><th>Billing Unit</th></tr>%s</table>
+<form id="acc" method="post" action="wss"><input type="hidden" name="uiActionName" id="ua"><table id="grdCustList" class="list_table"><tr><th>&nbsp;</th><th>Consumer No.</th><th>BU</th><th>/Circle Code</th><th>HT/LT</th><th>Bill Month</th><th>Consumption</th><th>Bill Amount</th><th>Bill Due Date</th></tr>%s</table>
 <p>To add a consumer click <a href="wss?uiActionName=getAddConsumer">Add Consumer</a></p>
 <button type="button" onclick="go('getChangeLoad')">Change Load/Demand</button> <button type="button" id="btnCON" onclick="go('changeOfName')">Change Of Name</button> <button type="button" onclick="go('getComplaint')">Complaint Status</button>
-</form><script>function go(a){if(!document.querySelector('input[name=consumerSel]:checked')){alert('Please select a consumer');return}document.getElementById('ua').value=a;document.getElementById('acc').submit()}</script>""" % rows
+</form><script>function radioCheck(r){}function go(a){if(!document.querySelector('input[name=consumerSel]:checked')){alert('Please select a consumer');return}document.getElementById('ua').value=a;document.getElementById('acc').submit()}</script>""" % rows
 
 def page_addconsumer(sess, msg='', otp=False):
     return CSS + """<div class="hd">Add Consumer</div><form method="post" action="wss"><input type="hidden" name="uiActionName" value="%s"><table>
@@ -114,9 +117,19 @@ def page_addconsumer(sess, msg='', otp=False):
 
 def page_form(sess, msg=''):
     c = sess['sel']; res = VARIANT == 'resident'
-    aadh = """<tr><td colspan="2"><input type="checkbox" id="chkAadhaar" name="chkAadhaar" onclick="aad()"> I, the holder of Aadhaar number, hereby give my consent to Maharashtra State Electricity Distribution Co. Ltd. to obtain my Aadhaar number and Name for authentication with UIDAI.</td></tr>
-<tr id="aadrow" style="display:none"><td>Aadhaar Number :*</td><td><input type="text" id="txtAadhaar" name="aadhaarNo" maxlength="12"> <button type="button" id="btnAadhaarOtp" onclick="aadOtp()">Generate OTP</button></td></tr>
-<tr id="aadotprow" style="display:none"><td>Aadhaar OTP :*</td><td><input type="text" id="txtAadOtp" name="aadOtpVal" maxlength="6"> <button type="button" id="btnAadVerify" onclick="aadVer()">Verify</button> <span id="aadMsg"></span></td></tr>"""
+    aadh = """<tr><td colspan="2"><input type="checkbox" id="chkUIDAIConcent" name="chkUIDAIConcent" onclick="displayUIDAIAadharPanel()"> I, the holder of Aadhaar number, hereby give my consent to Maharashtra State Electricity Distribution Co. Ltd. to obtain my Aadhaar number and Name for authentication with UIDAI.</td></tr>
+<tr id="TR_UIDAI_1" style="display: none"><td><span>Aadhaar Number/Virtual ID :</span></td><td><input name="txtAadharNo" type="text" id="txtAadharNo" data-prev-length="0"><img id="eyeIcon" alt="Toggle" width="20" height="19"></td><td><button id="btnUIDAIGenerateOTP" type="button" onclick="generateUIDAIOTP()"><em><span id="Label258">Generate OTP</span></em></button></td></tr>
+<tr id="trAadharMobNo" style="visibility: hidden"><td><span>Enter Aadhar Registered Mobile Number :</span></td><td><input name="txtAadharMobNo" type="text" maxlength="10" readonly="readonly" id="txtAadharMobNo" onkeydown="return jsDecimalsOnlyNumeric(event);"></td></tr>
+<tr id="TR_UIDAI_2" style="display: none"><td><span>Enter OTP:</span></td><td><input name="txtUIDAIOTP" type="text" maxlength="12" id="txtUIDAIOTP" onkeydown="return jsDecimalsOnlyNumeric(event);"></td><td><button id="btnUIDAIVerifyOTP" type="button" onclick="verifyAadhaarOTP();"><em><span id="Label264">Verify OTP</span></em></button></td></tr>
+<input type="hidden" id="hdnIsAadharMandatory" value="%(mand)s"><input type="hidden" id="hdnAadharNum" name="hdnAadharNum" value=""><input type="hidden" id="aadharmobno4digit" value=""><input type="hidden" id="hdnSourceofAA" value=""><input type="hidden" id="hdnAadharNameAppName" value=""><input type="hidden" id="hdnIsAadharAuthenticated" value="N">
+<input type="hidden" id="hdnccdmob1" value="%(m1)s"><input type="hidden" id="hdnccdmob2" value=""><input type="hidden" id="hdnccdmob3" value=""><input type="hidden" id="hdnccdmob4" value="">"""
+    AADJS = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'fixtures', 'wss-aadhaar-real.js')).read()
+    AADJS += """
+function isEmpty(v){return v==null||String(v).replace(/\\s/g,'')==''}
+function jsIsUserFriendlyChar(k,t){return [8,9,13,16,17,18,35,36,37,38,39,40,46,110,190].indexOf(k)>=0}
+function callAjax(m,u,params,async_,cb){var x=new XMLHttpRequest();x.open(m,u,false);x.setRequestHeader('Content-Type','application/x-www-form-urlencoded');x.send(params);cb(x.responseText)}
+"""
+    aadh = aadh % {'mand': 'Y' if VARIANT == 'resident' else 'N', 'm1': '9876543210' if os.environ.get('MOCK_AADMOB', 'match') == 'match' else '9000000000'}
     return CSS + """<form id="cf" method="post" action="wss"><input type="hidden" name="uiActionName" value="submitName">
 <ul><li>Name Change request would be accepted Online only.</li><li>Note: For correction in spelling please select option no. 10 in purpose of transfer tab.</li></ul>
 <div class="hd">Details of Old Consumer</div><table>
@@ -126,10 +139,10 @@ def page_form(sess, msg=''):
 <tr><td>Sub-Category :</td><td><input readonly value="%(cat)s"></td><td>Mobile number</td><td><input readonly value="98******34"></td></tr>
 <tr><td>Email-ID:</td><td><input readonly value="req*********@gmail.com"></td><td></td><td></td></tr><tr><td>Current Arrears:</td><td><input readonly value="-3.36"></td></tr></table>
 <div class="hd">Details of New Consumer</div><table>
-<tr><td>First Name :*</td><td><select id="ddlTitle" name="title"><option value="">-- Select --</option><option>Mr</option><option>Mrs</option><option>Ms</option><option>M/S</option><option>Smt</option></select> <input type="text" id="txtFirst" name="firstName" maxlength="50" onkeyup="comp()" onblur="comp()"></td></tr>
-<tr><td>Middle Name :</td><td><input type="text" id="txtMiddle" name="middleName" maxlength="50" onblur="comp()"></td></tr>
-<tr><td>Last Name :*</td><td><input type="text" id="txtLast" name="lastName" maxlength="50" onblur="comp()"></td></tr>
-<tr><td>Consumer Full Name :</td><td><input type="text" id="txtFull" name="fullName" readonly maxlength="50"> <span class="err">Max 50 char</span></td></tr>
+<tr><td>First Name :*</td><td><select id="ddlTitle" name="title"><option value="">-- Select --</option><option>Mr</option><option>Mrs</option><option>Ms</option><option>M/S</option><option>Smt</option></select> <input type="text" id="txtConsumerFirstName" name="firstName" maxlength="50" onkeyup="comp()" onblur="comp()"></td></tr>
+<tr><td>Middle Name :</td><td><input type="text" id="txtConsumerMiddleName" name="middleName" maxlength="50" onblur="comp()"></td></tr>
+<tr><td>Last Name :*</td><td><input type="text" id="txtConsumerLastName" name="lastName" maxlength="50" onblur="comp()"></td></tr>
+<tr><td>Consumer Full Name :</td><td><input type="text" id="txtConsumerFullName" name="fullName" readonly maxlength="50"> <span class="err">Max 50 char</span></td></tr>
 <tr><td>Email ID :*</td><td><input type="text" id="txtEmail" name="email"></td><td>Phone No :</td><td><input type="text" id="txtPhone" name="phone"></td></tr>
 <tr><td>Mobile number :*</td><td><input type="text" id="txtMobile" name="mobile" maxlength="10"></td></tr></table>
 <div class="hd">Purpose of Transfer/Correction in Name</div><table><tr><td>Select a reason :*</td><td><select id="ddlReason" name="reason"><option value="">-- Select --</option>
@@ -137,7 +150,7 @@ def page_form(sess, msg=''):
 <div class="hd">Aadhar Authentication</div><table><tr><td colspan="2" style="color:blue">Note : Providing an Aadhaar number is optional for Consumers having other than Residential category.</td></tr>%(aadh)s</table>
 <div class="hd">Document required :</div><div>Document Name<br>1) Proof of Title change (Any one of the below)<br>2) Consent Letter For Sd Transfer (Any one of the below)<br>- Form X</div>
 <p>Please Click on "Generate OTP" button to get OTP on Mobile and Email Address for verification purpose.</p>
-<button type="button" id="btnGenOtp" class="btn" onclick="genOtp()">Generate OTP</button>
+<button type="button" id="SubmitButton2" class="btn" onclick="genOtp()">Generate OTP</button>
 <table id="otprow" style="display:none"><tr><td>Mobile OTP :*</td><td><input type="text" id="txtMobOtp" name="mobOtp" maxlength="6"></td><td>Email OTP :*</td><td><input type="text" id="txtEmailOtp" name="emailOtp" maxlength="6"></td></tr></table>
 <div class="hd">I hereby declare that</div><ol><li>I will abide by the provisions of Electricity Act 2003.</li><li>The above information is true and if any false information is observed...</li></ol>
 <table><tr><td><input type="checkbox" id="chkAgree" name="agree"> We agree to the terms and conditions</td><td>Place : <input type="text" id="txtPlace" name="place"></td></tr></table>
@@ -145,14 +158,12 @@ def page_form(sess, msg=''):
 <button type="button" id="btnSubmit" class="btn" onclick="sub()">Submit</button><div class="err" id="lblMsg">%(msg)s</div></form>
 <script>
 var RES=%(res)s;
-function comp(){var t=document.getElementById('ddlTitle').value;var p=[t,txtFirst.value,txtMiddle.value,txtLast.value].filter(Boolean).join(' ');document.getElementById('txtFull').value=p.slice(0,50)}
+%(aadjs)s
+function comp(){var t=document.getElementById('ddlTitle').value;var ms=(t=='M/S');var m=document.getElementById('txtConsumerMiddleName'),l=document.getElementById('txtConsumerLastName');if(ms){m.value='';l.value=''}m.style.display=ms?'none':'';l.style.display=ms?'none':'';var p=[t,txtConsumerFirstName.value,m.value,l.value].filter(Boolean).join(' ');document.getElementById('txtConsumerFullName').value=p.slice(0,50)}
 document.getElementById('ddlTitle').onchange=comp;
-function aad(){var on=chkAadhaar.checked&&RES;document.getElementById('aadrow').style.display=on?'':'none'}
-function aadOtp(){if(!/^\\d{12}$/.test(txtAadhaar.value)){alert('Enter 12 digit Aadhaar');return}fetch('wss?uiActionName=aadhaarOtp',{method:'POST',credentials:'include',body:'aadhaar='+txtAadhaar.value,headers:{'Content-Type':'application/x-www-form-urlencoded'}}).then(r=>r.text()).then(t=>{document.getElementById('aadotprow').style.display='';document.getElementById('aadMsg').textContent=t})}
-function aadVer(){fetch('wss?uiActionName=aadhaarVerify',{method:'POST',credentials:'include',body:'otp='+txtAadOtp.value,headers:{'Content-Type':'application/x-www-form-urlencoded'}}).then(r=>r.text()).then(t=>{document.getElementById('aadMsg').textContent=t})}
-function genOtp(){fetch('wss?uiActionName=genOtp',{method:'POST',credentials:'include',body:'m='+txtMobile.value+'&e='+txtEmail.value,headers:{'Content-Type':'application/x-www-form-urlencoded'}}).then(r=>r.text()).then(t=>{alert(t);document.getElementById('otprow').style.display=''})}
-function sub(){if(!document.getElementById('chkAgree').checked){alert('Please accept the terms and conditions');return}if(confirm('Are you sure you want to submit?'))document.getElementById('cf').submit()}
-</script>""" % {'no': c['no'], 'bu': c['bu'], 'name': c['name'], 'cat': c['cat'], 'aadh': aadh, 'msg': msg, 'res': 'true' if res else 'false'}
+function genOtp(){if(!confirm('You will get OTP on your registered Mobile Number: xxxxxx3210 and on Email Address for Change of Name application.\\n Do you want to confirm?'))return;fetch('wss?uiActionName=genOtp',{method:'POST',credentials:'include',body:'m='+txtMobile.value+'&e='+txtEmail.value,headers:{'Content-Type':'application/x-www-form-urlencoded'}}).then(r=>r.text()).then(t=>{alert(t);document.getElementById('otprow').style.display=''})}
+function sub(){if(hdnIsAadharMandatory.value=='Y'&&hdnIsAadharAuthenticated.value=='N'&&!/society|trust|ltd|chs/i.test(txtConsumerFullName.value)){alert('For Residential Consumers, Aadhaar number authentication is mandatory');return}if(!document.getElementById('chkAgree').checked){alert('Please accept the terms and conditions');return}if(confirm('Are you sure you want to submit?'))document.getElementById('cf').submit()}
+</script>""" % {'no': c['no'], 'bu': c['bu'], 'name': c['name'], 'cat': c['cat'], 'aadh': aadh, 'aadjs': AADJS, 'msg': msg, 'res': 'true' if res else 'false'}
 
 def page_upload(sess, msg=''):
     docs = ['Proof of Title change - Registered Agreement / possession letter', 'Consent Letter For Sd Transfer', 'Form X'] if not sess.get('spell') else ['Correction Document']
@@ -208,8 +219,9 @@ class H(BaseHTTPRequestHandler):
             if 'multipart' in ct: fields, files = parse_multipart(body, ct)
             else: fields = dict(urllib.parse.parse_qsl(body.decode('utf-8', 'replace')))
         act = fields.get('uiActionName') or q.get('uiActionName') or ''
-        LOG.append({'m': method, 'path': u.path, 'act': act, 'fields': {k: ('***' if k in ('password', 'otp', 'txtOTP', 'aadhaarNo', 'aadhaar') else v[:60]) for k, v in fields.items()}, 'files': {str(k): (v[0], len(v[1])) for k, v in files.items()}})
+        LOG.append({'m': method, 'path': u.path, 'act': act, 'fields': {k: ('***' if k in ('password', 'otp', 'txtOTP', 'aadhaarNo', 'aadhaar', 'AadharNo', 'Aadhar', 'AadharOTP') else v[:60]) for k, v in fields.items()}, 'files': {str(k): (v[0], len(v[1])) for k, v in files.items()}, 'lens': {k: len(v) for k, v in fields.items() if k in ('AadharNo', 'Aadhar', 'AadharOTP')}, 'digits': {k: bool(re.fullmatch(r'\d+', v)) for k, v in fields.items() if k in ('AadharNo', 'Aadhar')}})
         if u.path == '/__log': return self.send(json.dumps(LOG), 'application/json')
+        if u.path == '/wss/__form': sess['auth'] = True; sess['sel'] = sess['consumers'][0]; return self.send(page_form(sess))   # tests only: the form page without the login walk
         if u.path == '/__reset': SESS.clear(); LOG.clear(); return self.send('ok')
         if u.path == '/captcha':
             im = Image.new('RGB', (150, 50), (240, 240, 230)); d = ImageDraw.Draw(im)
@@ -269,8 +281,14 @@ class H(BaseHTTPRequestHandler):
             return self.send(page_addconsumer(sess, 'Invalid OTP', otp=True))
         if act == 'changeOfName':
             no = fields.get('consumerSel'); sess['sel'] = next((c for c in sess['consumers'] if c['no'] == no), sess['consumers'][0]); return self.send(page_form(sess))
-        if act == 'aadhaarOtp': sess['aad'] = fields.get('aadhaar'); return self.send('OTP sent to Aadhaar linked mobile 9876543210')
-        if act == 'aadhaarVerify': return self.send('Aadhaar verified' if fields.get('otp') == '246810' else 'Wrong Aadhaar OTP')
+        if act == 'generateAadharOTPUIDAI':
+            no = fields.get('AadharNo', '')   # honest like the real site: an empty / non-digit / not 12-digit number is what it answers "Invalid Auth XML format" to
+            if not re.fullmatch(r'\d{12}', no): return self.send(json.dumps({'Ret': 'N', 'ErrorDesc': 'Invalid Auth XML format.'}), 'application/json')
+            sess['aad'] = True; return self.send(json.dumps({'Ret': 'Y', 'ErrorDesc': '', 'ResponseMessage': 'OTP sent to mobile number ending ****3210'}), 'application/json')
+        if act == 'validateAadharOTPUIDAI':
+            ok = fields.get('AadharOTP') == '246810' and re.fullmatch(r'\d{12}', fields.get('Aadhar', ''))
+            if not ok: return self.send(json.dumps({'Ret': 'N', 'ErrorDesc': 'Invalid OTP'}), 'application/json')
+            return self.send(json.dumps({'Ret': 'Y', 'ErrorDesc': '', 'Poi': {'name': fields.get('ConsumerFullName', '')}}), 'application/json')
         if act == 'genOtp': return self.send('OTP sent to registered mobile and email')
         if act == 'submitName':
             err = []

@@ -123,13 +123,31 @@ t('share text carries the application type', () => {
 
 /* ---------- v1.1.0: New Application flow ---------- */
 t('name: Title + First + Middle + Last composed with single spaces', () => {
-  assert.strictEqual(P.composeName('Mr', 'Ramesh', '', 'Patil'), 'Mr Ramesh Patil');
-  assert.strictEqual(P.composeName('M/S', '  Jai   Laxmi ', ' ', ' Traders '), 'M/S Jai Laxmi Traders');
-  assert.strictEqual(P.composeName('', 'Sunil', 'Anant', 'Deshmukh'), 'Sunil Anant Deshmukh');
+  assert.strictEqual(P.composeName('Mr', 'Ramesh', '', 'Patil'), 'Mr RAMESH PATIL');
+  assert.strictEqual(P.composeName('', 'Sunil', 'Anant', 'Deshmukh'), 'SUNIL ANANT DESHMUKH');
   assert.strictEqual(P.composeName(null, undefined, '', ''), '');
 });
+t('M/S: one single-line name, composed as "M/S " + name (middle / last ignored), trimmed, counted toward the same 50', () => {
+  assert.strictEqual(P.composeName('M/S', '  Jai   Laxmi  Traders ', '', ''), 'M/S JAI LAXMI TRADERS');
+  assert.strictEqual(P.composeName('M/S', 'Jai Laxmi', 'stale middle', 'stale last'), 'M/S JAI LAXMI');
+  assert.strictEqual(P.composeName('m/s', 'x', '', ''), 'm/s X');
+  assert.strictEqual(P.nameLength('M/S', 'Jai Laxmi Welfare Society', '', ''), 29);
+  assert.ok(P.isMS('M/S') && P.isMS(' m/s ') && P.isMS('M/S.') && !P.isMS('Mrs') && !P.isMS('Ms') && !P.isMS(''));
+  const p = P.clampName({ title: 'M/S', first: 'a'.repeat(80), middle: 'zz', last: 'yy' }, 'first');
+  assert.strictEqual(p.middle, ''); assert.strictEqual(p.last, '');
+  assert.strictEqual(P.composeName(p.title, p.first, p.middle, p.last).length, 50);     // 'M/S ' (4) + 46
+  assert.strictEqual(p.first, 'A'.repeat(46));
+  const full = 'M/S ' + 'A'.repeat(46); assert.strictEqual(P.nameLength('M/S', 'A'.repeat(46), '', ''), full.length);
+});
+t('names are UPPERCASE by default (typed, mixed case, pasted); the counter counts the same length', () => {
+  assert.strictEqual(P.upName('ramesh Shankar'), 'RAMESH SHANKAR');
+  assert.strictEqual(P.composeName('Mrs', 'sunita', 'ananT', 'deshMukh'), 'Mrs SUNITA ANANT DESHMUKH');
+  assert.strictEqual(P.nameLength('Mrs', 'sunita', 'anant', 'deshmukh'), P.nameLength('Mrs', 'SUNITA', 'ANANT', 'DESHMUKH'));
+  const p = P.clampName({ title: 'Mr', first: 'ramesh', middle: '', last: 'patil' }, 'last');
+  assert.strictEqual(p.first, 'RAMESH'); assert.strictEqual(p.last, 'PATIL');
+});
 t('name: counter counts the composed name (title and spaces included)', () => {
-  assert.strictEqual(P.nameLength('Mr', 'Ramesh', '', 'Patil'), 15);
+  assert.strictEqual(P.nameLength('Mr', 'Ramesh', '', 'Patil'), 15);   // 'Mr RAMESH PATIL'
   assert.strictEqual(P.nameLength('', '', '', ''), 0);
   assert.strictEqual(P.NAME_MAX, 50);
 });
@@ -139,10 +157,10 @@ t('name: typing is blocked at 50 characters', () => {
   assert.strictEqual(p.first.length, 46);
   // already short: untouched
   const q = P.clampName({ title: 'Mr', first: 'Ramesh', middle: '', last: 'Patil' }, 'last');
-  assert.strictEqual(q.last, 'Patil');
+  assert.strictEqual(q.last, 'PATIL');
   // the field being typed is shortened, the others stay
   const r = P.clampName({ title: 'Mr', first: 'Ramesh', middle: 'Shankar', last: 'B'.repeat(60) }, 'last');
-  assert.strictEqual(r.first, 'Ramesh'); assert.strictEqual(r.middle, 'Shankar');
+  assert.strictEqual(r.first, 'RAMESH'); assert.strictEqual(r.middle, 'SHANKAR');
   assert.ok(P.nameLength(r.title, r.first, r.middle, r.last) <= 50);
 });
 t('email and mobile checks', () => {
@@ -225,3 +243,58 @@ t('login: a page with no password / OTP / account signals is "other", not a logi
   assert.strictEqual(r.kind, 'other');
 });
 console.log(`\n${n} tests passed`);
+
+/* ---------- v1.1.2: Aadhaar checks, consumer search, site-message handling ---------- */
+t('aadhaar: Verhoeff check digit (known vectors) + 12 digits + first digit 2-9', () => {
+  assert.ok(P.verhoeffValid('2363')); assert.ok(!P.verhoeffValid('2364')); assert.ok(P.verhoeffValid('123451'));
+  assert.ok(P.validAadhaar('234567890124'));          // dummy number with a correct check digit
+  assert.ok(!P.validAadhaar('234567890125'));         // one digit off
+  assert.ok(!P.validAadhaar('23456789012'));          // 11 digits
+  assert.ok(!P.validAadhaar('2345678901245'));        // 13 digits
+  assert.ok(!P.validAadhaar('134567890123') && !P.validAadhaar('034567890123'));   // can never start with 0 or 1
+  assert.ok(!P.validAadhaar('') && !P.validAadhaar(null) && !P.validAadhaar('abcdefghijkl'));
+  assert.ok(P.validAadhaar('2345 6789 0124'));        // spaces are ignored
+  // every single-digit slip and every adjacent swap in a valid number is caught
+  const g = '234567890124'; let bad = 0, total = 0;
+  for (let i = 0; i < 12; i++) for (let d = 0; d < 10; d++) { if (String(d) === g[i]) continue; const h = g.slice(0, i) + d + g.slice(i + 1); total++; if (!P.validAadhaar(h)) bad++; }
+  assert.strictEqual(bad, total);
+});
+t('aadhaar: the official page waives it for society / trust style names (as its own script does)', () => {
+  assert.ok(P.aadhaarWaived('M/S JAI LAXMI WELFARE SOCIETY')); assert.ok(P.aadhaarWaived('Shree Ganesh CHS Ltd'));
+  assert.ok(!P.aadhaarWaived('Mr RAMESH PATIL')); assert.ok(!P.aadhaarWaived(''));
+});
+t('aadhaar: the official page\'s own words become an ERROR, never a "linked mobile"', () => {
+  let r = P.aadhaarReply(['Invalid Aadhar Number entered.', 'Invalid Auth XML format.']);
+  assert.strictEqual(r.ok, false); assert.strictEqual(r.error, 'Invalid Aadhar Number entered. Invalid Auth XML format.');
+  r = P.aadhaarReply(['No mobile number found.']); assert.strictEqual(r.ok, false); assert.ok(/No mobile number found/.test(r.error));
+  r = P.aadhaarReply(['Error at UIDAI for Sending OTP to Aadhar Registered Mobile number. Please try after some time.']); assert.strictEqual(r.ok, false);
+  r = P.aadhaarReply(['OTP sent to mobile number ending ****3210']); assert.strictEqual(r.ok, true); assert.strictEqual(r.error, '');
+  r = P.aadhaarReply([]); assert.strictEqual(r.ok, false); assert.strictEqual(r.error, '');
+  r = P.aadhaarReply(['Invalid Aadhar Number entered.', 'Invalid Aadhar Number entered.']); assert.strictEqual(r.error, 'Invalid Aadhar Number entered.');   // de-duplicated
+});
+const CONS = [
+  { cno: '092236112147', name: 'TABASSUM NISHA', cells: ['092236112147', '4960', 'VASAI RD. URBAN S/DN', 'LT'] },
+  { cno: '170012345678', name: 'RAMESH KUMAR', cells: ['170012345678', '3031', 'PEN S/DN', 'LT'] },
+  { cno: '150000500037', name: 'Suresh  Patil', cells: ['150000500037', '4001', 'KALYAN S/DN', 'LT'] },
+  { cno: '150000500074', name: '', cells: ['150000500074', '4002', 'KALYAN S/DN', 'LT'] },
+];
+t('search: by NAME (case-insensitive, substring, extra spaces ignored)', () => {
+  const f = (q) => P.filterConsumers(CONS, q).map((c) => c.cno);
+  assert.deepStrictEqual(f('tabas'), ['092236112147']);
+  assert.deepStrictEqual(f('  RaMesh    kumar '), ['170012345678']);
+  assert.deepStrictEqual(f('suresh patil'), ['150000500037']);     // the list has two spaces, the query one
+  assert.deepStrictEqual(f('ISH'), ['092236112147']);
+  assert.deepStrictEqual(f('nobody'), []);
+});
+t('search: by consumer NUMBER (digits substring) from the same box', () => {
+  const f = (q) => P.filterConsumers(CONS, q).map((c) => c.cno);
+  assert.deepStrictEqual(f('0922'), ['092236112147']);
+  assert.deepStrictEqual(f('45678'), ['170012345678']);
+  assert.deepStrictEqual(f('1500005'), ['150000500037', '150000500074']);
+  assert.deepStrictEqual(f('1500 0050'), ['150000500037', '150000500074']);   // spaces inside digits are ignored
+});
+t('search: empty query = everything; the billing unit / division text is searched for words; a nameless row still matches its number', () => {
+  assert.strictEqual(P.filterConsumers(CONS, '').length, 4); assert.strictEqual(P.filterConsumers(CONS, '   ').length, 4); assert.strictEqual(P.filterConsumers(null, 'x').length, 0);
+  assert.deepStrictEqual(P.filterConsumers(CONS, 'kalyan').map((c) => c.cno), ['150000500037', '150000500074']);
+  assert.deepStrictEqual(P.filterConsumers(CONS, '074').map((c) => c.cno), ['150000500074']);
+});

@@ -12,8 +12,8 @@ Get the latest files from **[Releases](https://github.com/FilmyFather/vidyutsewa
 
 | File | For |
 |---|---|
-| `VidyutSewa-By-Yuvraj-1.1.1.apk` | Android 5.0 and newer (signed with v1 + v2 + v3 schemes) |
-| `VidyutSewa-By-Yuvraj-1.1.1-Windows-Portable.exe` | Windows 10 / 11 (64-bit), no install needed |
+| `VidyutSewa-By-Yuvraj-1.1.2.apk` | Android 5.0 and newer (signed with v1 + v2 + v3 schemes) |
+| `VidyutSewa-By-Yuvraj-1.1.2-Windows-Portable.exe` | Windows 10 / 11 (64-bit), no install needed |
 
 **Android:** open the APK, allow "Install Unknown Apps" for your browser / WhatsApp / file manager when asked, then tap Install. Allow notifications so status alerts can arrive.
 
@@ -31,6 +31,18 @@ Get the latest files from **[Releases](https://github.com/FilmyFather/vidyutsewa
 - **Bill**: 12-digit consumer number → bill card (name, consumer no, billing unit, units, bill month, bill date, amount, due date, after-due amount, prompt payment discount) → **original MSEDCL bill PDF** download / share on WhatsApp, previous months, recent numbers.
 - **Documents**: vault per Application ID.
 - **Settings** (gear, top right): 4 themes (Royal Electric (default), Emerald Luxe, Sunset Power, Purple Aurora) × Dark / Light / System, English / हिंदी / मराठी, mode, notifications, auto re-upload, auto-delete, optional App Lock (PIN, fingerprint on Android), Next Customer wipe, WhatsApp template (`{Name}` `{ID}` `{Shop Name}`), backup & restore (one file with all data + PDFs), storage, update check against GitHub Releases.
+
+## What's new in 1.1.2 - Aadhaar fix, M/S single-line name, consumer search
+
+- **Aadhaar step fixed.** The official page masks its Aadhaar box and builds the real number from one keystroke at a time. 1.1.1 put all 12 digits in at once, so the page kept only the last digit and answered "Invalid Aadhar Number entered. Invalid Auth XML format." The app now types the number into the official box key by key, checks that the page really holds all 12 digits, and clicks the real buttons by their exact ids (#btnUIDAIGenerateOTP, #btnUIDAIVerifyOTP). The final-page Generate OTP is the page's other button (#SubmitButton2), never the Aadhaar one.
+- **The official site's own words show as an error** (red box under the button), never inside the "Aadhaar Linked Mobile" box. That box appears only when the page really filled a number. If the page leaves the mobile box empty the app shows the last 4 digits and offers a field to type the full number.
+- **Checked on the phone first:** 12 digits, first digit 2-9 and the Verhoeff check digit. A wrong number shows "This Aadhaar Number Looks Invalid, Please Check" and never reaches the site. Residential consumers cannot skip Aadhaar until it is verified (the page's own rule, including its society / trust name exception).
+- **Diagnostics** has an Aadhaar block: lengths, element ids and the site's raw messages (digits blanked). The number, the mobile and the OTP are never shown, copied or stored. Open Official Page + Diagnostics are on every step screen.
+- **M/S**: when Title is M/S there is ONE single-line Name field (counted as "M/S " + name, max 50). First / Middle / Last are not shown. Other titles keep the compact Title + First and Middle + Last rows.
+- **Names are UPPERCASE** (typed or pasted), in the field, the preview, the counter and what goes to the site.
+- **Consumer list**: every row shows the consumer NAME (bold) + number + the billing unit line. A search box (pinned at the top, works on long lists) filters by name (case-insensitive, extra spaces ignored) and by number (digits) from one box, with a "No Consumers Found" state. Names come from the list itself, or from the official app's bill service (4 at a time, kept in memory for the visit only).
+- The pop-ups of the official page (where the login OTP / final OTP went) are shown in the app.
+- Tests: `tests/e2e/aadhaar_old_vs_new.py` proves the old driver fails and the new one passes against a copy of the site's own Aadhaar script; the mock now answers "Invalid Aadhar Number entered. Invalid Auth XML format." for an empty / non-digit / short number.
 
 ## What's new in 1.1.1 - login fix
 
