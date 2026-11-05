@@ -12,8 +12,8 @@ Get the latest files from **[Releases](https://github.com/FilmyFather/vidyutsewa
 
 | File | For |
 |---|---|
-| `VidyutSewa-By-Yuvraj-1.1.0.apk` | Android 5.0 and newer (signed with v1 + v2 + v3 schemes) |
-| `VidyutSewa-By-Yuvraj-1.1.0-Windows-Portable.exe` | Windows 10 / 11 (64-bit), no install needed |
+| `VidyutSewa-By-Yuvraj-1.1.1.apk` | Android 5.0 and newer (signed with v1 + v2 + v3 schemes) |
+| `VidyutSewa-By-Yuvraj-1.1.1-Windows-Portable.exe` | Windows 10 / 11 (64-bit), no install needed |
 
 **Android:** open the APK, allow "Install Unknown Apps" for your browser / WhatsApp / file manager when asked, then tap Install. Allow notifications so status alerts can arrive.
 
@@ -32,6 +32,14 @@ Get the latest files from **[Releases](https://github.com/FilmyFather/vidyutsewa
 - **Documents**: vault per Application ID.
 - **Settings** (gear, top right): 4 themes (Royal Electric (default), Emerald Luxe, Sunset Power, Purple Aurora) × Dark / Light / System, English / हिंदी / मराठी, mode, notifications, auto re-upload, auto-delete, optional App Lock (PIN, fingerprint on Android), Next Customer wipe, WhatsApp template (`{Name}` `{ID}` `{Shop Name}`), backup & restore (one file with all data + PDFs), storage, update check against GitHub Releases.
 
+## What's new in 1.1.1 - login fix
+
+- **Login step fixed.** The app now presses the official page's own **Generate OTP** button (#loginButton) and never the site's left-menu "Login" link, which only reloaded the login page. Menu text such as "Complaint Status" is no longer mistaken for an error message.
+- After each click the app waits up to about 20 seconds for the official page to settle (OTP box, My Account / consumer list, or the site's own message). It no longer re-fetches the captcha unless the site says it is invalid or you tap **New**.
+- If the page still looks like the login form and shows no message, the app quietly re-checks the session (up to 3 reloads) and continues if the official site is already logged in.
+- **Diagnostics** now include the page title, address, a snippet of the page text, which signals matched and the error text that was matched.
+- New tests: classifier fixtures (`tests/fixtures/login-snaps.json`), a driver check on a saved copy of the real login page (`tests/e2e/driver_real_login.py`) and mock-site login modes (`MOCK_LOGIN=ajax|lag|lagcreds`).
+
 ## What's new in 1.1.0 - Apply For Change Of Name inside the app
 
 The whole **New Application (Change Of Name)** now happens in native app screens. The official MSEDCL site (wss.mahadiscom.in) runs quietly behind the app in a hidden browser session, so every rule and every number still comes from the official site, but you never see its page unless you want to.
@@ -49,7 +57,7 @@ If the official page ever looks different from what the app expects, that step f
 
 Windows: the same flow runs in a hidden window of the desktop app. Hindi and Marathi are extended for every new string.
 
-Tests: `node tests/parsers.test.js` (name composition, 50-character counter, file rules, application number, fee, receipt status); `tests/mock/server.py` is a local imitation of the official pages used by the headless end-to-end runs in `tests/e2e/`. The mock is a model built from a screen recording, not the real site.
+Tests: `node tests/parsers.test.js` (name composition, 50-character counter, file rules, application number, fee, receipt status); `tests/mock/server.py` is a local imitation of the official pages used by the headless end-to-end runs in `tests/e2e/` (`MOCK_LOGIN=ajax` mimics the real page's ajax OTP step and its left menu). The mock is a model built from a screen recording, not the real site.
 
 ## What's new in 1.0.1
 

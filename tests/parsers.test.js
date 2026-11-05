@@ -184,4 +184,44 @@ t('versions: 1.1.0 is newer than 1.0.1', () => {
   assert.strictEqual(P.versionNewer('1.1.0', '1.0.1'), true);
   assert.strictEqual(P.versionNewer('1.0.1', '1.1.0'), false);
 });
+
+/* ---------- v1.1.1: login page state classifier (fixtures = snapshots in the shape vsdrv.js produces) ---------- */
+const snaps = JSON.parse(fx('login-snaps.json'));
+const cls = (k) => P.classifyLoginPage(snaps[k], new Array(snaps[k].cons || 0).fill({}), 'login');
+t('login: form with the site\'s real error -> login + error "Invalid Captcha", never "Complaint Status"', () => {
+  const r = cls('loginFormRealError');
+  assert.strictEqual(r.kind, 'login'); assert.deepStrictEqual(r.errors, ['Invalid Captcha']);
+});
+t('login: form, no error, menu text "Complaint Status" present -> login, NO error', () => {
+  const r = cls('loginFormNoError');
+  assert.strictEqual(r.kind, 'login'); assert.deepStrictEqual(r.errors, []);
+});
+t('login: OTP page -> loginotp (OTP box signal)', () => {
+  const r = cls('otpPage');
+  assert.strictEqual(r.kind, 'loginotp'); assert.ok(r.signals.some((x) => /OTP box/.test(x)));
+});
+t('login: My Account page (consumer list / Logout / title) -> accounts / home', () => {
+  assert.strictEqual(cls('myAccountPage').kind, 'accounts');
+  const noCons = Object.assign({}, snaps.myAccountPage, { cons: 0 });
+  assert.strictEqual(P.classifyLoginPage(noCons, [], 'login').kind, 'home');
+  assert.strictEqual(cls('marathiAccountTitle').kind, 'home');
+  assert.deepStrictEqual(cls('myAccountPage').errors, []);
+});
+t('login: menu text with "Complaint" is never an error (messages, alerts, near-matches)', () => {
+  const r = cls('menuTextOnly'); assert.deepStrictEqual(r.errors, []);
+  const nav = snaps.menuTextOnly.buttons;
+  ['Complaint Status', 'Complaint Registration', 'Online Application Related Complaint Registration', 'complaint status ', 'Register Complaint for Swagat Cell'].forEach((m) => {
+    assert.deepStrictEqual(P.cleanErrors([m], nav), [], m); assert.deepStrictEqual(P.cleanErrors([m], nav, true), [], m + ' (trusted)');
+  });
+  assert.deepStrictEqual(P.cleanErrors([{ t: 'Complaint Status' }], []), []);   // even with no button list: no error words, not an error
+  assert.deepStrictEqual(P.cleanErrors(['You have entered wrong OTP!'], nav, true), ['You have entered wrong OTP!']);
+  assert.deepStrictEqual(P.cleanErrors(['Some other alert text'], nav, true), ['Some other alert text']);   // alerts raised by the site always count
+});
+t('login: the site\'s own validation message found in the page text even without a message element', () => {
+  const r = cls('siteMessageOnlyInText'); assert.strictEqual(r.kind, 'login'); assert.deepStrictEqual(r.errors, ['Enter Captcha First']);
+});
+t('login: a page with no password / OTP / account signals is "other", not a login failure', () => {
+  const r = P.classifyLoginPage({ url: 'https://x', title: 'Something', text: 'hello', main: 'hello', fields: [], buttons: [], msgs: [] }, [], 'login');
+  assert.strictEqual(r.kind, 'other');
+});
 console.log(`\n${n} tests passed`);

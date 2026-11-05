@@ -29,7 +29,7 @@
       case 'readDoc': var d = localStorage.getItem('vs-doc-' + args.id + '-' + args.slot); return Promise.resolve(d ? JSON.parse(d) : null);
       case 'deleteDocs': Object.keys(localStorage).forEach(function (k) { if (k.indexOf('vs-doc-' + args.id + '-') === 0) localStorage.removeItem(k); }); return Promise.resolve(true);
       case 'openExternal': window.open(args.url, '_blank'); return Promise.resolve(true);
-      case 'appInfo': return Promise.resolve({ version: '1.1.0', platform: 'web' });
+      case 'appInfo': return Promise.resolve({ version: '1.1.1', platform: 'web' });
       case 'storageInfo': return Promise.resolve({ docs: 0, cache: 0 });
       case 'notify': try { new Notification(args.title, { body: args.body }); } catch (e) {} return Promise.resolve(true);
       default: return Promise.resolve(null);

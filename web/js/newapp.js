@@ -1,4 +1,4 @@
-/* VidyutSewa By Yuvraj v1.1.0 - NATIVE "New Application" (Change Of Name).
+/* VidyutSewa By Yuvraj v1.1.1 - NATIVE "New Application" (Change Of Name).
  * The official wss.mahadiscom.in pages run invisibly in a hidden session (see vsdrv.js); this file mirrors each step in native screens.
  * The person types captcha, OTPs and Aadhaar here; the app only hands them to the official page. Submit and payment happen only on a tap.
  * Nothing is stored except the (optional) login name + password in the device's secure storage, and the saved application itself. */
@@ -40,7 +40,7 @@
   }
   function diag(kind, what, ok, detail) {
     if (!NA) return;
-    NA.diag.push({ at: Date.now(), step: NA.step, kind: kind, what: what, ok: ok !== false, detail: String(detail || '').slice(0, 300) });
+    NA.diag.push({ at: Date.now(), step: NA.step, kind: kind, what: what, ok: ok !== false, detail: String(detail || '').slice(0, kind === 'state' ? 900 : 300) });
     if (NA.diag.length > 300) NA.diag.shift();
   }
   async function fillSite(label, spec, value, required) {
@@ -61,8 +61,8 @@
     user: { any: ['loginId', 'user name', 'username', 'login name', 'user id', 'login id'], tag: 'input', notType: ['password', 'checkbox', 'radio', 'button', 'submit'], editable: true },
     pass: { any: ['password'], type: 'password' },
     captcha: { any: ['txtInput', 'captcha', 'enter the code', 'security code', 'verification code'], tag: 'input', notType: ['password', 'checkbox', 'radio', 'button', 'submit'], editable: true },
-    loginBtn: { any: ['loginButton', 'generate otp', 'login', 'log in', 'sign in'], not: ['clear', 'loginbuttonotp', 'reset', 'cancel', 'register', 'forgot', 'new user'] },   // on the real page the first button is labelled "Generate OTP" (id loginButton)
-    loginBtnOtp: { any: ['loginButtonOTP', 'login', 'verify', 'submit', 'validate'], not: ['clear', 'reset', 'cancel', 'register', 'forgot', 'new user'], last: true },
+    loginBtn: { ids: ['loginButton'], any: ['loginButton', 'generate otp', 'get otp', 'send otp', 'login', 'log in', 'sign in'], noNav: true, not: ['clear', 'loginbuttonotp', 'reset', 'cancel', 'register', 'forgot', 'new user'] },   // real page: button #loginButton ("Generate OTP"); the left-menu "Login" link (#leftnav_loginPage) must never match
+    loginBtnOtp: { ids: ['loginButtonOTP'], any: ['loginButtonOTP', 'verify otp', 'validate otp', 'login', 'verify', 'submit'], noNav: true, last: true, not: ['clear', 'reset', 'cancel', 'register', 'forgot', 'new user', 'generate'] },
     loginOtp: { any: ['txtOTP', 'otp', 'one time'], tag: 'input', notType: NOT_BOX, editable: true },
     title: { tag: 'select', any: ['title', 'first name', 'salutation'], optHas: ['m/s', 'mrs', 'smt', 'mr'], not: ['reason', 'category'] },
     first: { tag: 'input', any: ['first name', 'firstname', 'fname', 'first'], notType: NOT_BOX, editable: true, not: ['old'] },
@@ -254,24 +254,17 @@
   NAUI.forgetCreds = async function () { await Native.call('credClear').catch(function () {}); NA.login.creds = false; NA.login.user = ''; NA.login.pass = ''; NA.login.remember = false; rerender(true); toast(t('Saved Login Removed')); };
   async function classify() {
     var s = await snap(); if (!s) return { kind: 'none' };
-    var hasPass = s.fields.some(function (f) { return f.type === 'password' && f.vis; });
     var cons = await Drv.d('consumers').catch(function () { return []; });
-    var otps = otpFieldsOf(s);
-    var low = (s.text || '').toLowerCase();
-    var kind = 'other';
-    if (cons && cons.length) kind = 'accounts';
-    else if (s.fields.some(function (f) { return (f.tag === 'input' && /first\s*name|firstname/i.test(f.label + f.id + f.name)); }) && s.fields.some(function (f) { return f.tag === 'select' && /reason|purpose/i.test(f.label + f.id + f.name + JSON.stringify(f.options || [])); })) kind = 'form';
-    else if (s.fields.some(function (f) { return f.type === 'file'; })) kind = 'upload';
-    else if (otps.length && /login|sign in/i.test(low) && !(NA.step === 'confirm')) kind = hasPass && !/enter the otp|otp/i.test(low) ? 'login' : 'loginotp';
-    else if (hasPass) kind = 'login';
-    else if (/logout|log out|sign out/.test(low)) kind = 'home';
-    return { kind: kind, s: s, cons: cons || [] };
+    var r = P.classifyLoginPage(s, cons, NA.step);
+    return { kind: r.kind, s: s, cons: cons || [], signals: r.signals, errors: r.errors };
   }
   NAUI.classify = classify;
   function siteErrors(s, extra) {
+    // messages the site itself raised (alerts) + message elements; menu / button text is dropped
     var out = [];
-    (extra || []).forEach(function (x) { if (x && out.indexOf(x) < 0) out.push(x); });
-    ((s && s.msgs) || []).forEach(function (x) { if (x && out.indexOf(x) < 0) out.push(x); });
+    var btns = (s && s.buttons) || [];
+    P.cleanErrors((extra || []), btns, true).forEach(function (x) { if (out.indexOf(x) < 0) out.push(x); });   // alerts: trusted, only menu labels dropped
+    P.cleanErrors((s && s.msgs) || [], btns).forEach(function (x) { if (out.indexOf(x) < 0) out.push(x); });
     return out;
   }
   NAUI.doLogin = async function () {
@@ -282,36 +275,84 @@
       busy(t('Verifying OTP With The Official Site...')); NA.failed = [];
       await fillSite('Login OTP', SP.loginOtp, L.otp.trim(), true);
       var a = await act('click Login (OTP)', function () { return Drv.d('click', SP.loginBtnOtp); }, 9000);
-      L.otp = ''; return afterLogin(a);
+      L.otp = ''; return afterLogin(a, 'otp');
     }
     if (!L.user.trim() || !L.pass || !L.captcha.trim()) return fail(t('Enter User Name, Password And Captcha'));
     busy(t('Logging In On The Official Site...')); NA.failed = [];
     await fillSite('User Name', SP.user, L.user.trim(), true); await fillSite('Password', SP.pass, L.pass, true); await fillSite('Captcha', SP.captcha, L.captcha.trim(), true);
     if (NA.failed.length) return fail(t('Could Not Fill') + ': ' + NA.failed.join(', '));
+    L.typedCap = L.captcha.trim();
     var a2 = await act('click Login', function () { return Drv.d('click', SP.loginBtn); }, 9000);
-    L.captcha = ''; return afterLogin(a2);
+    L.captcha = ''; return afterLogin(a2, 'creds');
   };
-  async function afterLogin(a) {
-    var L = NA.login, w = null;
-    for (var i = 0; i < 12; i++) {
-      w = await classify();
-      if (w.kind === 'accounts' || w.kind === 'home' || w.kind === 'loginotp' || (w.kind === 'login' && (a.msgs.length || (w.s && w.s.msgs.length)) && i > 0)) break;
-      await sleep(900);
+  /* After a click on the official login page: wait (up to ~20 s) until the page shows a decisive state, never judging an unchanged page too early. */
+  var WSS_RECHECK = ['https://wss.mahadiscom.in/wss/wss?uiActionName=getMyAccount', LANG_URL, 'https://wss.mahadiscom.in/wss/wss'];
+  async function pullMsgs(into) {
+    var m = await Drv.msgs(); var pm = await Drv.ev('__vsd.drain()').catch(function () { return null; });
+    m.concat((pm && pm.msgs) || []).forEach(function (x) { if (x && x.t && into.indexOf(x.t) < 0) into.push(x.t); });
+  }
+  function diagState(label, w, errs) {
+    var s = (w && w.s) || {};
+    diag('state', label, !!(w && (w.kind === 'accounts' || w.kind === 'home' || w.kind === 'loginotp')), 'kind=' + (w && w.kind) + ' | title=' + (s.title || '') + ' | url=' + String(s.url || '').replace(/[?#].*$/, '') +
+      ' | signals=' + ((w && w.signals) || []).join(', ') + ' | error=' + ((errs && errs[0]) || '(none)') + ' | text=' + String(s.main || s.text || '').replace(/\s+/g, ' ').slice(0, 300));
+  }
+  async function settle(phase, a, ms) {
+    var t0 = Date.now(), msgs = ((a && a.msgs) || []).slice(), w = null, errs = [], i = 0;
+    while (Date.now() - t0 < ms) {
+      await pullMsgs(msgs);
+      w = await classify(); errs = siteErrors(w.s, msgs);
+      if (w.kind === 'accounts' || w.kind === 'home') break;
+      if (phase === 'creds' && w.kind === 'loginotp') break;
+      if (phase === 'recheck') { if (w.kind === 'login' && i >= 3) break; }
+      else if (errs.length && (w.kind === 'login' || w.kind === 'loginotp')) break;       // the site itself said what is wrong
+      await sleep(700); i++;
     }
+    return { w: w, errs: errs, msgs: msgs, waited: Date.now() - t0 };
+  }
+  async function softRecheck() {
+    // the site often is already logged in when its own page is opened again: re-read the state (up to 3 reloads) before reporting a failure
+    for (var n = 0; n < WSS_RECHECK.length; n++) {
+      diag('recheck', 'reload ' + (n + 1) + ' of ' + WSS_RECHECK.length, true, WSS_RECHECK[n].replace(/^https:\/\/wss\.mahadiscom\.in/, ''));
+      await Drv.load(WSS_RECHECK[n]).catch(function () {});
+      await sleep(1200);
+      var r = await settle('recheck', { msgs: [] }, 6000);
+      diagState('recheck ' + (n + 1), r.w, r.errs);
+      if (r.w && (r.w.kind === 'accounts' || r.w.kind === 'home')) return r;
+    }
+    return null;
+  }
+  async function afterLogin(a, phase) {
+    var L = NA.login, r = await settle(phase, a, 20000), w = r.w;
     if (!w) return fail(t('No Answer From The Official Site'));
-    if (w.kind === 'loginotp') {
-      L.needOtp = true; L.otpMsg = siteErrors(w.s, a.msgs).filter(function (x) { return /otp/i.test(x); })[0] || ''; NA.busy = ''; return rerender(false);
+    diagState('after ' + (phase === 'otp' ? 'OTP' : 'login') + ' click (' + Math.round(r.waited / 1000) + 's)', w, r.errs);
+    if (phase === 'creds' && w.kind === 'loginotp') {
+      var sm = String(w.s.main || w.s.text || ''), mm = sm.match(/Mobile\s*(?:Number|No\.?)\s*:?\s*([X*x\d]{4,})/i), em = sm.match(/E-?mail\s*(?:ID)?\s*:?\s*(\S+@\S+|[X*x\w.]+@[\w.*]+)/i);
+      L.needOtp = true; L.otpMsg = r.errs.filter(function (x) { return /otp/i.test(x); })[0] || (t('The Official Site Sent An OTP To The Registered Mobile.') + (mm ? ' ' + mm[1] : ''));
+      NA.busy = ''; return rerender(false);
     }
-    if (w.kind === 'login' || w.kind === 'none') {
-      var errs = siteErrors(w.s, a.msgs).filter(function (x) { return !/^login$/i.test(x); });
-      L.needOtp = false; await loadCaptcha(); NA.busy = '';
-      return fail((errs[0] || t('Login Did Not Go Through. Check The Details And Captcha.')));
+    if (w.kind !== 'accounts' && w.kind !== 'home') {
+      if (!r.errs.length) {
+        // login form still showing, no message from the site: do not call it a failure yet
+        busy(t('Checking The Official Site Again...'));
+        var rc = await softRecheck();
+        if (rc) { w = rc.w; r = rc; }
+      }
     }
-    // logged in
-    if (L.remember) await Native.call('credSet', { user: L.user.trim(), pass: L.pass }).then(function () { L.creds = true; }).catch(function () { toast(t('Could Not Save The Login On This Phone')); });
-    else await Native.call('credClear').catch(function () {});
-    L.pass = ''; L.needOtp = false;
-    NAUI.toAccounts();
+    if (w.kind === 'accounts' || w.kind === 'home') {
+      // logged in
+      if (L.remember) await Native.call('credSet', { user: L.user.trim(), pass: L.pass }).then(function () { L.creds = true; }).catch(function () { toast(t('Could Not Save The Login On This Phone')); });
+      else await Native.call('credClear').catch(function () {});
+      L.pass = ''; L.needOtp = false;
+      return NAUI.toAccounts();
+    }
+    if (w.kind === 'loginotp') {   // still on the OTP row
+      L.needOtp = true; NA.busy = '';
+      return fail(r.errs[0] || t('The Official Site Did Not Accept The OTP Yet. Check It And Try Again.'));
+    }
+    var errs = r.errs.filter(function (x) { return !/^login$/i.test(x); });
+    L.needOtp = false; NA.busy = '';
+    await loadCaptcha();   // reads the captcha currently drawn by the site (the site redraws it itself after a rejected try); nothing is re-requested
+    return fail(errs[0] || t('Login Did Not Go Through. Check The Details And Captcha.'));
   }
 
   /* ---- accounts (consumer list) ---- */
@@ -933,7 +974,7 @@
     return page(hdrBack(t('Diagnostics'), ''), body, false);
   };
   NAUI.copyReport = function () {
-    var s = NA.dsnap, rep = 'VidyutSewa 1.1.0 diagnostics\nstep: ' + NA.step + '\n' + (s ? 'page: ' + s.title + ' ' + (s.url || '').replace(/[?#].*$/, '') + '\nfields: ' + s.fields.map(function (f) { return (f.label || f.id || f.name) + '<' + f.type + '>'; }).join('; ') + '\nbuttons: ' + s.buttons.map(function (b) { return b.t; }).join('; ') + '\n' : '') +
+    var s = NA.dsnap, rep = 'VidyutSewa 1.1.1 diagnostics\nstep: ' + NA.step + '\n' + (s ? 'page: ' + s.title + ' ' + (s.url || '').replace(/[?#].*$/, '') + '\nfields: ' + s.fields.map(function (f) { return (f.label || f.id || f.name) + '<' + f.type + '>'; }).join('; ') + '\nbuttons: ' + s.buttons.map(function (b) { return b.t; }).join('; ') + '\n' : '') +
       NA.diag.slice(-60).map(function (d) { return (d.ok ? 'OK ' : 'FAIL ') + d.step + ' ' + d.kind + ' ' + d.what + ' ' + d.detail; }).join('\n');
     Native.call('copy', { text: rep }).then(function () { toast(t('Copied')); }).catch(function () {});
   };

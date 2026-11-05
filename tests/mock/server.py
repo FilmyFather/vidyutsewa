@@ -8,6 +8,8 @@ from PIL import Image, ImageDraw, ImageFont
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8099
 VARIANT = sys.argv[2] if len(sys.argv) > 2 else 'society'
+import os
+MODE = os.environ.get('MOCK_LOGIN', 'classic')   # classic | ajax (real wss: ajax OTP step) | lag (ajax; the post-OTP page comes back unchanged once, logged-in on reload) | lagcreds (ajax; Generate OTP shows nothing, logged-in on reload)
 SESS = {}
 LOG = []
 
@@ -41,8 +43,52 @@ function validateLoginFormOTP(){document.getElementById('uiActionName').value='l
 OTPROW = """<tr><td colspan="2"><span class="err">%s</span></td></tr><tr><td>OTP</td><td><input type="text" name="txtOTP" id="txtOTP" maxlength="7"></td></tr>
 <tr><td colspan="2"><button id="loginButtonOTP" type="submit" onclick="return validateLoginFormOTP()">Login</button></td></tr>"""
 
+
+NAV = """<div id="leftnav_notloggedin" style="float:right;width:210px;border:1px solid #ccc;font-size:12px"><ul style="list-style:none;margin:0;padding:4px">
+<li id="leftnav_homePage"><a href="wss?uiActionName=getHome"><span id="leftnav_lblHome">Home</span></a></li>
+<li id="leftnav_createProfile"><a href="wss?uiActionName=getCreateProfile"><span id="leftnav_lblNewUser">New User Registration</span></a></li>
+<li id="leftnav_loginPage"><a href="wss?uiActionName=getCustAccountLogin"><span id="leftnav_lblLogin">Login</span></a></li>
+<li id="leftnav_forgotLoginPassword"><a href="wss?uiActionName=getForgot"><span id="leftnav_lblForgot">Forgot Login Name/Password?</span></a></li>
+<li id="leftnav_complaintRegistration"><a id="leftnav_complaintRegistrationlnk" href="wss?uiActionName=getComplaint"><span id="leftnav_lblComplaint">Complaint Registration</span></a></li>
+<li id="leftnav_trackComplaintStatus"><a id="leftnav_trackComplaintStatuslnk" href="wss?uiActionName=getTrack"><span id="leftnav_lblComplaintStatus">Complaint Status</span></a></li>
+<li id="leftnav_submitReading"><a id="leftnav_submitReadinglnk" href="wss?uiActionName=getReading"><span id="leftnav_lblSubmitReading">Submit Self Reading</span></a></li>
+</ul></div>"""
+
+LOGIN_AJAX = """<div style="width:640px"><form name="loginForm" id="loginForm" method="post" action="wss" onsubmit="return false">
+<input type="hidden" name="uiActionName" id="uiActionName"><table id="tblLoginForm" style="width:360px">
+<tr><td>Login Name<span class="red">*</span></td><td><input type="text" name="loginId" id="loginId" maxlength="24"></td></tr>
+<tr><td>Password<span class="red">*</span></td><td><input type="password" name="password" id="password" maxlength="20"></td></tr>
+%(capcell)s
+<tr><td>Captcha<span class="red">*</span></td><td><input type="text" maxlength="6" id="txtInput"></td></tr>
+<tr><td colspan="2"><button id="loginButton" type="submit" onclick="return validateLoginForm()"><em><span id="lblLoginButton">Generate OTP</span></em></button> <button id="clearButton" type="submit" onclick="clearLoginForm()"><em><span id="lblClear">Clear</span></em></button></td></tr></table>
+<table id="tblOTP" style="visibility:hidden;width:360px"><tr><td><span id="lblOTP">Enter OTP:</span><br><span id="lblMaskedEmail1"></span><br><span id="lblMaskedMobNo1"></span></td><td><input name="txtOTP" type="text" id="txtOTP" maxlength="7"></td>
+<td><button id="loginButtonOTP" type="submit" onclick="return validateLoginFormOTP()"><em><span id="lblLoginOTP">Login</span></em></button></td></tr></table></form></div>
+<script>
+function post(u,b,cb){fetch(u,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:b}).then(function(r){return r.text()}).then(cb)}
+function validateLoginForm(){var l=document.getElementById('loginId').value,p=document.getElementById('password').value,c=document.getElementById('txtInput').value;
+ if(!l||!p||!c){alert('Enter Login Name, Password and Captcha First');return false}
+ post('wss?uiActionName=validateLoginIdAndPassword&IsAjax=true','LoginId='+encodeURIComponent(l)+'&Password='+encodeURIComponent('ENC:'+p.split('').reverse().join(''))+'&txtInput='+encodeURIComponent(c),function(res){
+  if(res.indexOf('true')==0){var t=res.split('#');document.getElementById('lblMaskedEmail1').innerHTML='Email ID: '+t[1];document.getElementById('lblMaskedMobNo1').innerHTML='Mobile Number: '+t[2];
+   document.getElementById('loginButton').style.visibility='hidden';document.getElementById('tblOTP').style.visibility='visible'}
+  else if(res.indexOf('Invalid_Captcha')==0){drawCap(res.substring(15,21));alert('Invalid Captcha')}
+  else if(res.indexOf('false')==0){drawCap(res.substring(5,11));alert('Invalid login name or password.')}
+  else if(res=='silent'){}});
+ return false}
+function validateLoginFormOTP(){var o=document.getElementById('txtOTP').value;if(!o){alert('Please enter OTP');return false}
+ if(o.length!=7&&o.length!=6){alert('Entered OTP must be 7 digits only');return false}
+ post('wss?uiActionName=validateLoginOTP&IsAjax=true','LoginId='+document.getElementById('loginId').value+'&OTP='+o,function(res){
+  if(res.indexOf('true')==0){document.getElementById('uiActionName').value='postCustAccountLogin';document.loginForm.submit()}
+  else{document.getElementById('txtOTP').value='';alert('You have entered wrong OTP!')}});return false}
+function clearLoginForm(){document.getElementById('loginId').value='';document.getElementById('password').value='';document.getElementById('txtInput').value='';document.getElementById('tblOTP').style.visibility='hidden';document.getElementById('loginButton').style.visibility='visible'}
+%(capjs)s
+</script>"""
+
 def page_login(sess, msg='', otp=False):
     sess['cap'] = ''.join(random.choice('ABCDEFGHJKLMNPQRSTUVWXYZ23456789') for _ in range(6))
+    if MODE != 'classic':
+        capcell = '<tr><td><b>Captcha </b></td><td><table><tr><td><div id="divCaptcha" style="border-style:ridge"></div></td><td><button id="btnCaptchaRefLogin" type="button" onclick="RefreshCaptchaLogin();">R</button></td></tr></table></td></tr>'
+        capjs = "function drawCap(t){var d=document.getElementById('divCaptcha');d.innerHTML='';var c=document.createElement('canvas');c.id='captcha';c.width=100;c.height=40;var x=c.getContext('2d');x.font='25px Georgia';x.strokeText(t,0,30);d.appendChild(c);}function RefreshCaptchaLogin(){fetch('/__newcap').then(function(r){return r.text()}).then(drawCap)}window.addEventListener('load',function(){drawCap(CAPTEXT)});".replace('CAPTEXT', json.dumps(sess['cap']))
+        return CSS + NAV + LOGIN_AJAX % {'capcell': capcell, 'capjs': capjs}
     extra = (OTPROW % msg) if otp else ('<tr><td colspan="2"><span id="lblErr" class="err">%s</span></td></tr>' % msg if msg else '')
     if VARIANT == 'resident':   # like the real wss page: the captcha is a canvas drawn by the page's own script
         capcell = '<tr><td><b>Captcha </b></td><td><table><tr><td><div id="divCaptcha" style="border-style:ridge"></div></td><td><button id="btnCaptchaRefLogin" type="button" onclick="RefreshCaptchaLogin();" style="height:50px"><img src="/refresh.png" alt="refresh" width="22" height="22"></button></td></tr></table></td></tr>'
@@ -186,7 +232,26 @@ class H(BaseHTTPRequestHandler):
             if not sess['auth']: return self.send('login', code=403)
             return self.send(make_pdf(), 'application/pdf', extra={'Content-Disposition': 'inline; filename="receipt.pdf"'})
         if u.path != '/wss/wss': return self.send('not found', code=404)
-        if act in ('', 'getCustAccountLogin'): return self.send(page_login(sess))
+        if act == 'validateLoginIdAndPassword':
+            if fields.get('txtInput', '').upper() != sess['cap']:
+                sess['cap'] = ''.join(random.choice('ABCDEFGHJKLMNPQRSTUVWXYZ23456789') for _ in range(6)); return self.send('Invalid_Captcha' + sess['cap'])
+            if fields.get('LoginId') != 'yuvishop' or fields.get('Password') != 'ENC:' + 'Pass@123'[::-1]:
+                sess['cap'] = ''.join(random.choice('ABCDEFGHJKLMNPQRSTUVWXYZ23456789') for _ in range(6)); return self.send('false' + sess['cap'])
+            sess['otp_sent'] = True
+            if MODE == 'lagcreds': sess['auth'] = True; return self.send('silent')
+            return self.send('true#a****@gmail.com#98******94')
+        if act == 'validateLoginOTP':
+            if sess['otp_sent'] and fields.get('OTP') == '123456': sess['otp_ok'] = True; return self.send('true')
+            return self.send('false')
+        if act == 'postCustAccountLogin':
+            if sess.get('otp_ok'):
+                sess['auth'] = True
+                if MODE == 'lag' and not sess.get('lagged'): sess['lagged'] = True; return self.send(page_login(sess))   # same login page comes back once, no message
+                return self.send(page_account(sess))
+            return self.send(page_login(sess, 'Session expired. Please login again.'))
+        if act in ('', 'getCustAccountLogin'):
+            if MODE == 'lagcreds' and sess['auth']: return self.send(page_account(sess))
+            return self.send(page_login(sess))
         if act == 'login':
             if fields.get('txtInput', '').upper() != sess['cap']: return self.send(page_login(sess, 'Invalid Captcha'))
             if fields.get('loginId') != 'yuvishop' or fields.get('password') != 'ENC:' + 'Pass@123'[::-1]: return self.send(page_login(sess, 'Invalid user name or password'))

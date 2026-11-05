@@ -3,8 +3,8 @@
  * It never submits, uploads or pays by itself: the app calls click() only after the person's own tap. */
 (function () {
   'use strict';
-  if (window.__vsd && window.__vsd.v === 3) return;
-  var D = { v: 3, msgs: [], opened: [], els: [] };
+  if (window.__vsd && window.__vsd.v === 4) return;
+  var D = { v: 4, msgs: [], opened: [], els: [] };
   window.__vsd = D;
 
   function norm(s) { return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9\/]+/g, '').replace(/\//g, ''); }
@@ -20,6 +20,9 @@
     }
     return true;
   }
+  // navigation / menu items of the official site (left menu etc.): never a login button, never an error message
+  var NAV_SEL = '[id^=leftnav],[id*=leftnav_],[class*=leftnav],[class*=left_nav],[class*=sidebar],[id*=sidebar],nav,[role=navigation],[role=menu],[role=menubar],[id^=menu],[class~=menu],[class*=menu_],[class*=navbar],[id*=topnav],[class*=topnav],footer,[id*=footer]';
+  function inNav(el) { try { return !!(el && el.closest && el.closest(NAV_SEL)); } catch (e) { return false; } }
   function prevText(el) {
     // text that sits before the control: same-cell text first, then the previous cell, then further up
     var hop = el;
@@ -183,6 +186,8 @@
     var res = [];
     allButtons().forEach(function (el, k) {
       var t = btnText(el), T = norm(t), I = norm(el.id), N = norm(el.name), s = 0;
+      if (spec.noNav && inNav(el)) return;                       // menu links such as the left-nav "Login" are never the form's button
+      (spec.ids || []).forEach(function (raw) { if (el.id && el.id === raw) s = Math.max(s, 200); });   // exact element id wins over any label
       (spec.any || []).forEach(function (raw) {
         var n = norm(raw); if (!n) return; var x = 0;
         if (T === n) x = 100; else if (I === n || N === n) x = 90; else if (T.indexOf(n) === 0) x = 80; else if (T.indexOf(n) >= 0) x = 65; else if (I.indexOf(n) >= 0 || N.indexOf(n) >= 0) x = 55;
@@ -210,17 +215,34 @@
   D.fillIdx = function (i, v) { var e = D.els[i]; if (!e || !document.contains(e)) return { ok: false, err: 'gone' }; return applyValue(e, v); };
 
   // ---------- snapshot (also feeds the Diagnostics screen and the generic step renderer) ----------
+  // visible text of the page body without the navigation / menu / footer parts
+  D.mainText = function (n) {
+    try {
+      var out = [], w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null), x;
+      while ((x = w.nextNode()) && out.join(' ').length < (n || 300) + 200) {
+        var par = x.parentElement; if (!par || /^(SCRIPT|STYLE|NOSCRIPT|OPTION)$/.test(par.tagName)) continue;
+        var v = x.nodeValue.replace(/\s+/g, ' ').trim(); if (!v) continue;
+        if (!vis(par) || inNav(par)) continue;
+        out.push(v);
+      }
+      return clip(out.join(' '), n || 300);
+    } catch (e) { return ''; }
+  };
   D.snap = function () {
     D.els = [];
     var fields = allFields(false).map(function (el) { D.els.push(el); return fieldInfo(el, D.els.length - 1); });
-    var buttons = allButtons().slice(0, 60).map(function (el) { D.els.push(el); return { i: D.els.length - 1, t: btnText(el), id: el.id || '', name: el.name || '', dis: !!el.disabled, a: el.tagName === 'A' }; });
-    var msgs = [];
+    var buttons = allButtons().slice(0, 60).map(function (el) { D.els.push(el); return { i: D.els.length - 1, t: btnText(el), id: el.id || '', name: el.name || '', dis: !!el.disabled, a: el.tagName === 'A', nav: inNav(el) }; });
+    var msgs = [], linkTexts = {};
+    buttons.forEach(function (b) { var k = norm(b.t); if (k) linkTexts[k] = 1; });
     Array.prototype.slice.call(document.querySelectorAll('[id*=rror],[id*=sg],[id*=lert],[id*=essage],[id*=tatus],[class*=rror],[class*=alert],[class*=essage],[class*=uccess],[class*=ail]')).forEach(function (e) {
       if (!vis(e) || e.querySelector('input,select,textarea,table')) return;
-      var t = txt(e); if (t && t.length < 300 && msgs.indexOf(t) < 0) msgs.push(t);
+      if (inNav(e) || (e.closest && e.closest('a,button,[role=button]'))) return;     // menu text is not a message ("Complaint Status")
+      var t = txt(e); if (!t || t.length >= 300 || msgs.indexOf(t) >= 0) return;
+      if (linkTexts[norm(t)]) return;                                                  // same words as a link / button on the page
+      msgs.push(t);
     });
     var body = document.body ? String(document.body.innerText || '').replace(/[ \t]+/g, ' ').slice(0, 30000) : '';
-    return { url: location.href, title: clip(document.title, 100), text: body, msgs: msgs.slice(0, 8), fields: fields.slice(0, 120), buttons: buttons, imgs: Array.prototype.slice.call(document.images).filter(vis).slice(0, 10).map(function (m) { return { id: m.id, src: clip(m.src, 120), w: m.naturalWidth, h: m.naturalHeight }; }), ready: document.readyState, forms: document.forms.length };
+    return { url: location.href, title: clip(document.title, 100), text: body, main: D.mainText(600), msgs: msgs.slice(0, 8), fields: fields.slice(0, 120), buttons: buttons, imgs: Array.prototype.slice.call(document.images).filter(vis).slice(0, 10).map(function (m) { return { id: m.id, src: clip(m.src, 120), w: m.naturalWidth, h: m.naturalHeight }; }), ready: document.readyState, forms: document.forms.length };
   };
   D.text = function (n) { return document.body ? clip(document.body.innerText, n || 20000) : ''; };
   D.textHas = function (re, flags) { try { return new RegExp(re, flags || 'i').test(D.text(50000)); } catch (e) { return false; } };

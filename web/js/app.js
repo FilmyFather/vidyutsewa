@@ -8,7 +8,7 @@
   var REPO_API = 'https://api.github.com/repos/FilmyFather/vidyutsewa/releases/latest';
   var LOGIN_URL = 'https://wss.mahadiscom.in/wss/wss?uiActionName=getCustAccountLogin';
   var BILL_SITE = 'https://wss.mahadiscom.in/wss/wss?uiActionName=getViewPayBill';
-  var VERSION = '1.1.0';
+  var VERSION = '1.1.1';
   var DISCLAIMER = 'Independent Helper App. Not Affiliated With Or Endorsed By MSEDCL. All Applications Are Submitted And Paid On The Official MSEDCL Website.';
   var THEMES = [
     ['royal', 'Royal Electric', ['#0B1744', '#22D3EE', '#3B82F6']],

@@ -1,0 +1,714 @@
+{
+ "loginFormRealError": {
+  "url": "https://wss.mahadiscom.in/wss/wss",
+  "title": "Registered User Login",
+  "text": "Web Self Service Home Registered User Login Login Name* Password* Captcha* Invalid Captcha Generate OTP",
+  "main": "Login Name * Password * Captcha * Generate OTP Clear",
+  "msgs": [
+   "Invalid Captcha",
+   "Complaint Status"
+  ],
+  "fields": [
+   {
+    "tag": "input",
+    "type": "text",
+    "id": "loginId",
+    "name": "loginId",
+    "label": "Login Name*",
+    "vis": true
+   },
+   {
+    "tag": "input",
+    "type": "password",
+    "id": "password",
+    "name": "password",
+    "label": "Password*",
+    "vis": true
+   },
+   {
+    "tag": "input",
+    "type": "text",
+    "id": "txtInput",
+    "name": "",
+    "label": "Captcha*",
+    "vis": true
+   }
+  ],
+  "buttons": [
+   {
+    "t": "Web Self Service Home",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Registered User Login",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Home",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "New User Registration",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Login",
+    "id": "leftnav_loginPage",
+    "nav": true
+   },
+   {
+    "t": "Forgot Login Name/Password?",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "View/Pay Bill",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Consumption Calculator",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Energy Bill Calculator",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "New Connection Request",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Prepaid Meter Recharge",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Register Complaint for Swagat Cell",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Complaint Registration",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Online Application Related Complaint Registration",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Security Deposit Estimation",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Complaint Status",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Submit Self Reading",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Generate OTP",
+    "id": "loginButton",
+    "nav": false
+   },
+   {
+    "t": "Clear",
+    "id": "",
+    "nav": false
+   }
+  ]
+ },
+ "loginFormNoError": {
+  "url": "https://wss.mahadiscom.in/wss/wss",
+  "title": "Registered User Login",
+  "text": "Complaint Status Login Name* Password* Captcha*",
+  "main": "Login Name * Password * Captcha * Generate OTP Clear",
+  "msgs": [
+   "Complaint Status"
+  ],
+  "fields": [
+   {
+    "tag": "input",
+    "type": "text",
+    "id": "loginId",
+    "name": "loginId",
+    "label": "Login Name*",
+    "vis": true
+   },
+   {
+    "tag": "input",
+    "type": "password",
+    "id": "password",
+    "name": "password",
+    "label": "Password*",
+    "vis": true
+   },
+   {
+    "tag": "input",
+    "type": "text",
+    "id": "txtInput",
+    "name": "",
+    "label": "Captcha*",
+    "vis": true
+   }
+  ],
+  "buttons": [
+   {
+    "t": "Web Self Service Home",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Registered User Login",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Home",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "New User Registration",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Login",
+    "id": "leftnav_loginPage",
+    "nav": true
+   },
+   {
+    "t": "Forgot Login Name/Password?",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "View/Pay Bill",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Consumption Calculator",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Energy Bill Calculator",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "New Connection Request",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Prepaid Meter Recharge",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Register Complaint for Swagat Cell",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Complaint Registration",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Online Application Related Complaint Registration",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Security Deposit Estimation",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Complaint Status",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Submit Self Reading",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Generate OTP",
+    "id": "loginButton",
+    "nav": false
+   },
+   {
+    "t": "Clear",
+    "id": "",
+    "nav": false
+   }
+  ]
+ },
+ "otpPage": {
+  "url": "https://wss.mahadiscom.in/wss/wss",
+  "title": "Registered User Login",
+  "text": "Login Name* Enter OTP: Email ID: a***@gmail.com Mobile Number: 98******94 Login",
+  "main": "Login Name * Password * Enter OTP: Email ID: a***@gmail.com Mobile Number: 98******94 Login",
+  "msgs": [
+   "Complaint Status"
+  ],
+  "fields": [
+   {
+    "tag": "input",
+    "type": "text",
+    "id": "loginId",
+    "name": "loginId",
+    "label": "Login Name*",
+    "vis": true
+   },
+   {
+    "tag": "input",
+    "type": "password",
+    "id": "password",
+    "name": "password",
+    "label": "Password*",
+    "vis": true
+   },
+   {
+    "tag": "input",
+    "type": "text",
+    "id": "txtInput",
+    "name": "",
+    "label": "Captcha*",
+    "vis": true
+   },
+   {
+    "tag": "input",
+    "type": "text",
+    "id": "txtOTP",
+    "name": "txtOTP",
+    "label": "Enter OTP:",
+    "vis": true
+   }
+  ],
+  "buttons": [
+   {
+    "t": "Web Self Service Home",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Registered User Login",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Home",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "New User Registration",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Login",
+    "id": "leftnav_loginPage",
+    "nav": true
+   },
+   {
+    "t": "Forgot Login Name/Password?",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "View/Pay Bill",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Consumption Calculator",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Energy Bill Calculator",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "New Connection Request",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Prepaid Meter Recharge",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Register Complaint for Swagat Cell",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Complaint Registration",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Online Application Related Complaint Registration",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Security Deposit Estimation",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Complaint Status",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Submit Self Reading",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Generate OTP",
+    "id": "loginButton",
+    "nav": false
+   },
+   {
+    "t": "Clear",
+    "id": "",
+    "nav": false
+   }
+  ],
+  "cons": 0
+ },
+ "myAccountPage": {
+  "url": "https://wss.mahadiscom.in/wss/wss?uiActionName=getMyAccount",
+  "title": "Manage My Account",
+  "text": "Welcome Logout My Account Consumer No. 000000000001",
+  "main": "Welcome Logout My Account Consumer No.",
+  "msgs": [
+   "Complaint Status"
+  ],
+  "fields": [
+   {
+    "tag": "input",
+    "type": "radio",
+    "id": "radCustList",
+    "name": "radCustList",
+    "label": "",
+    "vis": true
+   }
+  ],
+  "buttons": [
+   {
+    "t": "Logout",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Complaint Status",
+    "id": "",
+    "nav": true
+   }
+  ],
+  "cons": 2
+ },
+ "menuTextOnly": {
+  "url": "https://wss.mahadiscom.in/wss/wss",
+  "title": "Registered User Login",
+  "text": "Complaint Registration Complaint Status Online Application Related Complaint Registration",
+  "main": "Login Name * Password *",
+  "msgs": [
+   "Complaint Status",
+   "Complaint Registration",
+   "Online Application Related Complaint Registration",
+   "Register Complaint for Swagat Cell"
+  ],
+  "fields": [
+   {
+    "tag": "input",
+    "type": "text",
+    "id": "loginId",
+    "name": "loginId",
+    "label": "Login Name*",
+    "vis": true
+   },
+   {
+    "tag": "input",
+    "type": "password",
+    "id": "password",
+    "name": "password",
+    "label": "Password*",
+    "vis": true
+   },
+   {
+    "tag": "input",
+    "type": "text",
+    "id": "txtInput",
+    "name": "",
+    "label": "Captcha*",
+    "vis": true
+   }
+  ],
+  "buttons": [
+   {
+    "t": "Web Self Service Home",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Registered User Login",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Home",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "New User Registration",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Login",
+    "id": "leftnav_loginPage",
+    "nav": true
+   },
+   {
+    "t": "Forgot Login Name/Password?",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "View/Pay Bill",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Consumption Calculator",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Energy Bill Calculator",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "New Connection Request",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Prepaid Meter Recharge",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Register Complaint for Swagat Cell",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Complaint Registration",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Online Application Related Complaint Registration",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Security Deposit Estimation",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Complaint Status",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Submit Self Reading",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Generate OTP",
+    "id": "loginButton",
+    "nav": false
+   },
+   {
+    "t": "Clear",
+    "id": "",
+    "nav": false
+   }
+  ]
+ },
+ "siteMessageOnlyInText": {
+  "url": "https://wss.mahadiscom.in/wss/wss",
+  "title": "Registered User Login",
+  "text": "Login Name * Password * Enter Captcha First",
+  "main": "Login Name * Password * Enter Captcha First Generate OTP",
+  "msgs": [],
+  "fields": [
+   {
+    "tag": "input",
+    "type": "text",
+    "id": "loginId",
+    "name": "loginId",
+    "label": "Login Name*",
+    "vis": true
+   },
+   {
+    "tag": "input",
+    "type": "password",
+    "id": "password",
+    "name": "password",
+    "label": "Password*",
+    "vis": true
+   },
+   {
+    "tag": "input",
+    "type": "text",
+    "id": "txtInput",
+    "name": "",
+    "label": "Captcha*",
+    "vis": true
+   }
+  ],
+  "buttons": [
+   {
+    "t": "Web Self Service Home",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Registered User Login",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Home",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "New User Registration",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Login",
+    "id": "leftnav_loginPage",
+    "nav": true
+   },
+   {
+    "t": "Forgot Login Name/Password?",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "View/Pay Bill",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Consumption Calculator",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Energy Bill Calculator",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "New Connection Request",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Prepaid Meter Recharge",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Register Complaint for Swagat Cell",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Complaint Registration",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Online Application Related Complaint Registration",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Security Deposit Estimation",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Complaint Status",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Submit Self Reading",
+    "id": "",
+    "nav": true
+   },
+   {
+    "t": "Generate OTP",
+    "id": "loginButton",
+    "nav": false
+   },
+   {
+    "t": "Clear",
+    "id": "",
+    "nav": false
+   }
+  ]
+ },
+ "marathiAccountTitle": {
+  "url": "https://wss.mahadiscom.in/wss/wss",
+  "title": "खाते व्यवस्थापन",
+  "text": "ग्राहक",
+  "main": "ग्राहक",
+  "msgs": [],
+  "fields": [],
+  "buttons": []
+ }
+}

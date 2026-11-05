@@ -310,6 +310,67 @@
   // A clean file name for the receipt files (letters, digits, _ and - only)
   function receiptName(appNo, ext) { return uploadName('Receipt_' + (appNo || 'MSEDCL') + '.' + ext, 'Receipt', ext); }
 
+  /* ---------- v1.1.1: login page state classifier (pure; works on a page snapshot from vsdrv.js) ----------
+   * snap = { url, title, text, main, msgs[], fields[{type,id,name,label,tag,ro,vis}], buttons[{t,id,nav}] }
+   * Never treats navigation / menu text ("Complaint Status", "Complaint Registration" ...) as an error. */
+  function normTxt(s) { return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9\u0900-\u097f]+/g, ''); }
+  var ERR_WORDS = /invalid|incorrect|wrong|not\s*(?:valid|match|allowed|found|registered)|enter\s+(?:the\s+)?(?:captcha|login|user|password|otp|valid)|please\s+(?:enter|try|login|log\s*in|select|check)|captcha|expired|session|locked|blocked|too\s+many|failed|failure|unable|error|something\s+went\s+wrong|mismatch|attempt/i;
+  function cleanErrors(msgs, buttons, trusted) {
+    var nav = {};
+    (buttons || []).forEach(function (b) { var k = normTxt(b && (b.t || b.text)); if (k) nav[k] = 1; });
+    var out = [];
+    (msgs || []).forEach(function (m) {
+      var raw = String(m && m.t != null ? m.t : m == null ? '' : m).replace(/\s+/g, ' ').trim();
+      if (raw.length < 4 || raw.length > 250) return;
+      var k = normTxt(raw);
+      if (!k || nav[k]) return;                                  // exactly a menu / button label
+      for (var key in nav) { if (nav.hasOwnProperty(key) && key.length >= 6 && k.length <= key.length + 3 && k.indexOf(key) >= 0 && !ERR_WORDS.test(raw)) return; }   // (nearly) a menu label
+      if (!trusted && !ERR_WORDS.test(raw)) return;              // a page element needs error words to count; plain menu text never has them
+      if (out.indexOf(raw) < 0) out.push(raw);
+    });
+    return out;
+  }
+  function otpBoxes(fields) {
+    return (fields || []).filter(function (f) {
+      var k = (String(f.label || '') + ' ' + String(f.id || '') + ' ' + String(f.name || '')).toLowerCase();
+      return f.vis !== false && /otp/.test(k) && !/aadhaar|aadhar|aad|captcha/.test(k) && f.type !== 'checkbox' && f.type !== 'radio' && f.tag === 'input' && !f.ro;
+    });
+  }
+  var SITE_ERR_RES = [/enter captcha first/i, /invalid[\s_]*captcha/i, /invalid (?:login|user)[^.\n]{0,50}/i, /(?:login|user)[a-z ]{0,12}(?:or password )?(?:is |are )?(?:incorrect|invalid|wrong)[^.\n]{0,30}/i, /single quote\/double quote is not allowed[^.\n]{0,30}/i, /error while sending otp[^.\n]{0,30}/i, /entered otp must be 7 digits only/i, /you have entered wrong otp/i, /please enter otp/i, /invalid otp/i];
+  // returns {kind: accounts|home|loginotp|login|form|upload|other|none, signals[], errors[]}
+  function classifyLoginPage(snap, consumers, step) {
+    if (!snap) return { kind: 'none', signals: [], errors: [] };
+    var fields = snap.fields || [], buttons = snap.buttons || [], sig = [];
+    var title = String(snap.title || ''), url = String(snap.url || ''), low = String(snap.main != null && snap.main !== '' ? snap.main : snap.text || '').toLowerCase();
+    var pass = fields.some(function (f) { return f.type === 'password' && f.vis !== false; });
+    var user = fields.some(function (f) { return f.vis !== false && f.type !== 'password' && /loginid|login\s*name|user\s*name|username/i.test(String(f.id || '') + ' ' + String(f.label || '')) && !/otp/i.test(String(f.id || '')); });
+    var otps = otpBoxes(fields);
+    var cons = (consumers && consumers.length) || 0;
+    var errors = cleanErrors(snap.msgs, buttons);
+    var btnsNonNav = buttons.filter(function (b) { return !b.nav; });
+    var logout = btnsNonNav.concat(buttons.filter(function (b) { return b.nav; })).some(function (b) { return /^(logout|log out|sign out)$/i.test(String(b.t || '').trim()); }) || /(^|\s)(logout|log out|sign out)(\s|$)/i.test(low);
+    if (cons) sig.push('consumer list (' + cons + ')');
+    if (otps.length) sig.push('OTP box visible');
+    if (pass) sig.push('password field visible'); if (user) sig.push('login name field visible');
+    if (logout) sig.push('Logout visible');
+    if (/getmyaccount/i.test(url)) sig.push('My Account url');
+    if (/manage my account|my account/i.test(title)) sig.push('My Account title');
+    if (/खाते व्यवस्थापन/.test(title)) sig.push('My Account title (Marathi)');
+    var kind = 'other';
+    if (cons) kind = 'accounts';
+    else if (fields.some(function (f) { return f.tag === 'input' && /first\s*name|firstname/i.test(String(f.label || '') + String(f.id || '') + String(f.name || '')); }) && fields.some(function (f) { return f.tag === 'select' && /reason|purpose/i.test(String(f.label || '') + String(f.id || '') + String(f.name || '') + JSON.stringify(f.options || [])); })) kind = 'form';
+    else if (fields.some(function (f) { return f.type === 'file'; })) kind = 'upload';
+    else if (otps.length && (pass || user) && step !== 'confirm') kind = 'loginotp';
+    else if (otps.length && /login|sign in/i.test(low) && step !== 'confirm') kind = 'loginotp';
+    else if (pass || user) kind = 'login';
+    else if (logout || /getmyaccount/i.test(url) || /manage my account/i.test(title) || /खाते व्यवस्थापन/.test(title)) kind = 'home';
+    if (kind === 'login' || kind === 'loginotp') {   // the site's own validation strings (from its login page script), wherever it prints them
+      var body = String(snap.main || '') + ' ' + String(snap.text || '').slice(0, 4000);
+      SITE_ERR_RES.forEach(function (re) { var mt = body.match(re); if (mt) { var x = mt[0].replace(/\s+/g, ' ').trim(); if (errors.indexOf(x) < 0 && !errors.some(function (e) { return e.toLowerCase().indexOf(x.toLowerCase()) >= 0; })) { errors.push(x); sig.push('site message: ' + x); } } });
+    }
+    return { kind: kind, signals: sig, errors: errors };
+  }
+
   return {
     STATUS_URL: STATUS_URL, BILL_HEADERS: BILL_HEADERS, clean: clean, decodeEntities: decodeEntities,
     validConsumerNo: validConsumerNo, validAppId: validAppId, classifyStatus: classifyStatus,
@@ -318,6 +379,7 @@
     findApplicationId: findApplicationId, safeFileName: safeFileName, uploadName: uploadName, docSlots: docSlots, docName: docName, guessSlot: guessSlot, fillTemplate: fillTemplate,
     parseMsedclDate: parseMsedclDate, versionNewer: versionNewer,
     NAME_MAX: NAME_MAX, composeName: composeName, nameLength: nameLength, clampName: clampName, validEmail: validEmail, validMobile: validMobile,
-    parseAppNo: parseAppNo, feeFromText: feeFromText, receiptStatus: receiptStatus, aadhaarMobileText: aadhaarMobileText, receiptName: receiptName
+    parseAppNo: parseAppNo, feeFromText: feeFromText, receiptStatus: receiptStatus, aadhaarMobileText: aadhaarMobileText, receiptName: receiptName,
+    cleanErrors: cleanErrors, otpBoxes: otpBoxes, classifyLoginPage: classifyLoginPage
   };
 });

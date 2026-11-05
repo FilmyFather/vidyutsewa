@@ -100,13 +100,31 @@ async def run_flow(pa,pb,b,state,shot,settle):
         cap=await pb.evaluate("fetch('/__cap').then(r=>r.text())")
         await pa.fill('[data-k="login.user"]','yuvishop'); await pa.fill('[data-k="login.pass"]','Pass@123'); await pa.fill('[data-k="login.captcha"]',cap)
         await pa.click('.check >> text=Remember On This Phone'); 
+        MODE=os.environ.get('MOCK_LOGIN','classic')
         await pa.click('button:has-text("Login") >> nth=-1')
-        await settle('[data-k="login.otp"]', 30000); await shot('na03-login-otp')
-        ok('login asks OTP in app', True)
-        await pa.fill('[data-k="login.otp"]','123456'); await pa.click('text=Verify OTP And Login')
-        await settle('text=Select Consumer', 30000); await pa.wait_for_timeout(500); await shot('na04-accounts')
+        if MODE=='lagcreds':
+            await settle('text=Select Consumer', 90000)   # Generate OTP shows nothing; the site is already logged in when reloaded
+        else:
+            await settle('[data-k="login.otp"]', 30000); await shot('na03-login-otp')
+            ok('login asks OTP in app', True)
+            if MODE!='classic':
+                ok('masked mobile from the site shown on OTP step', await pa.is_visible('text=98******94'), await pa.inner_text('body'))
+            await pa.fill('[data-k="login.otp"]','123456'); await pa.click('text=Verify OTP And Login')
+            await settle('text=Select Consumer', 90000)
+        await pa.wait_for_timeout(500); await shot('na04-accounts')
         ok('creds saved only through secure store', state['creds'] and state['creds']['user']=='yuvishop')
         ok('two consumers listed', await pa.locator('.modecard').count()==2, await pa.locator('.modecard').count())
+        if MODE!='classic':
+            lg=await mocklog()
+            nav=[x for x in lg if x['act']=='getCustAccountLogin' and x['m']=='GET']
+            ok('left-menu Login link was never followed (login page loaded once)', len(nav)==1, len(nav))
+            dg=await pa.evaluate("NAUI_state().diag.map(function(d){return d.kind+':'+d.what+':'+d.detail})")
+            ok('login diagnostics carry title, url, text, signals', any(x.startswith('state:') and 'title=' in x and 'url=' in x and 'signals=' in x and 'text=' in x for x in dg), dg[-4:])
+            if MODE in ('lag','lagcreds'):
+                ok('soft recheck reloaded the session and found the logged-in page', any(x.startswith('recheck:') for x in dg), dg[-6:])
+            else:
+                ok('no needless recheck on a normal login', not any(x.startswith('recheck:') for x in dg), dg[-6:])
+        if os.environ.get('LOGIN_ONLY'): return
         await pa.click('.modecard >> nth=0'); await pa.click('button:has-text("Continue")')
         await settle('[data-k="f.first"]', 30000); await shot('na05-form-empty')
         titles=await pa.evaluate("Array.from(document.querySelectorAll('[data-k=\"f.title\"] option')).map(o=>o.value)")
