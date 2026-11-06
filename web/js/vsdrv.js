@@ -3,8 +3,8 @@
  * It never submits, uploads or pays by itself: the app calls click() only after the person's own tap. */
 (function () {
   'use strict';
-  if (window.__vsd && window.__vsd.v === 5) return;
-  var D = { v: 5, msgs: [], opened: [], els: [] };
+  if (window.__vsd && window.__vsd.v === 6) return;
+  var D = { v: 6, msgs: [], opened: [], els: [] };
   window.__vsd = D;
 
   function norm(s) { return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9\/]+/g, '').replace(/\//g, ''); }
@@ -277,6 +277,48 @@
     setTimeout(function () { el.click(); }, 0);
     return { ok: true, text: c[0].t, id: el.id };
   };
+
+  // ---------- final page (1.1.4): tick the REAL declaration box, type the Place, prove both before Submit, and mark the page so a navigation is seen ----------
+  function declEl(spec) {
+    var el = elById('chkAgreementCondition');
+    if (el && el.type === 'checkbox') return el;
+    var f = D.find(spec || { any: ['agree', 'terms and conditions', 'declare', 'declaration'], not: ['aadhaar', 'aadhar'], type: 'checkbox' });
+    return f.el && (f.el.type || '').toLowerCase() === 'checkbox' ? f.el : null;
+  }
+  // Real click first (the site's own onclick / change handlers run), events as a second try; the answer is what the page itself reports afterwards (.checked)
+  D.tickDeclaration = function (want, spec) {
+    var el = declEl(spec); if (!el) return { ok: false, err: 'declaration box not found' };
+    want = (want !== false); var tries = 0, how = 'already';
+    try { el.scrollIntoView && el.scrollIntoView({ block: 'center' }); } catch (e) {}
+    while (el.checked !== want && tries < 3) {
+      tries++;
+      if (tries === 1) { how = 'click'; el.focus && el.focus(); el.click(); }
+      else if (tries === 2) { how = 'click+events'; el.checked = want; fire(el, ['click', 'input', 'change']); try { if (typeof el.onclick === 'function') el.onclick(); } catch (e) {} }
+      else { how = 'second click'; el.click(); }
+    }
+    return { ok: el.checked === want, checked: !!el.checked, how: how, tries: tries, id: el.id || el.name || '' };
+  };
+  D.fillPlace = function (value, spec) {
+    var el = elById('txtPlace');
+    if (!el || !vis(el)) { var f = D.find(spec || { any: ['place'], tag: 'input', notType: ['checkbox', 'radio', 'button', 'submit', 'file'], editable: true }); el = f.el; }
+    if (!el) return { ok: false, err: 'place box not found' };
+    var v = String(value == null ? '' : value);
+    typeReal(el, v);
+    return { ok: String(el.value || '').trim().length > 0, len: String(el.value || '').length, id: el.id || '' };
+  };
+  // Booleans only (never the values): can the Submit click go out?
+  D.submitReady = function (submitSpec, placeSpec) {
+    var d = declEl(), pl = elById('txtPlace');
+    if (!pl) { var f = D.find(placeSpec || { any: ['place'], tag: 'input', notType: ['checkbox', 'radio', 'button', 'submit', 'file'], editable: true }); pl = f.el; }
+    var otps = Array.prototype.slice.call(document.querySelectorAll('input')).filter(function (e) {
+      var k = (e.id + ' ' + e.name).toLowerCase(); return /otp/.test(k) && !/aadhaar|aadhar|uidai|captcha/.test(k) && /^(text|tel|number|password|)$/.test((e.type || '').toLowerCase()) && !e.readOnly && !e.disabled && vis(e);
+    });
+    var bc = btnCandidates(submitSpec || { ids: ['SubmitButton'], any: ['submit'], not: ['otp', 'resubmit', 'back', 'reset', 'cancel'], last: true }), btn = elById('SubmitButton') || (bc.length ? bc[Math.min(0, bc.length - 1)].el : null);
+    return { declaration: !!(d && d.checked), declFound: !!d, place: !!(pl && String(pl.value || '').trim()), otpBoxes: otps.length, otp: otps.length ? otps.every(function (e) { return String(e.value || '').trim().length > 0; }) : true, submitBtn: !!btn };
+  };
+  // A marker that lives only on THIS page: when the site posts the form and loads a new page it is gone (a reloaded form looks just like the old one)
+  D.mark = function () { var m = 'vm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); window.__vsdMark = m; return m; };
+  D.markAlive = function (m) { return window.__vsdMark === m; };
   D.clickIdx = function (i) { var e = D.els[i]; if (!e || !document.contains(e)) return { ok: false, err: 'gone' }; setTimeout(function () { e.click(); }, 0); return { ok: true }; };
   D.fillIdx = function (i, v) { var e = D.els[i]; if (!e || !document.contains(e)) return { ok: false, err: 'gone' }; return applyValue(e, v); };
 

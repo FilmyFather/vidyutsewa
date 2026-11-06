@@ -2,8 +2,9 @@
 import asyncio, json, sys, glob, os, time, base64, io, re
 from playwright.async_api import async_playwright
 EXE=(glob.glob(os.path.expanduser('~/.cache/ms-playwright/chromium_headless_shell-*/*/chrome-headless-shell')) or [None])[0]
-W=sys.argv[1]; OUT=sys.argv[2]; VAR=sys.argv[3] if len(sys.argv)>3 else 'society'; MOCK='http://127.0.0.1:%s' % ('8099' if VAR=='society' else '8098')
-DRV=open(W+'/web/js/vsdrv.js').read()
+W=sys.argv[1]; OUT=sys.argv[2]; VAR=sys.argv[3] if len(sys.argv)>3 else 'society'; MOCK='http://127.0.0.1:%s' % (os.environ.get('E2E_MOCK') or ('8099' if VAR=='society' else '8098'))
+WEBP=os.environ.get('E2E_WEB','8090'); SUBMODE=os.environ.get('MOCK_SUBMIT','classic'); NAMEMM=os.environ.get('MOCK_NAMEMM',''); OLD=os.environ.get('E2E_OLD','')
+DRV=open(os.environ.get('E2E_DRV') or (W+'/web/js/vsdrv.js')).read()
 os.makedirs(OUT,exist_ok=True)
 errors=[]; steps=[]
 def ok(name, cond, extra=''):
@@ -99,7 +100,7 @@ async def mocklog():
 async def run_flow(pa,pb,b,state,shot,settle):
         global OUT
         import urllib.request; urllib.request.urlopen(MOCK+'/__reset').read()
-        await pa.goto('http://127.0.0.1:8090/index.html'); await pa.wait_for_timeout(3200)
+        await pa.goto('http://127.0.0.1:%s/index.html' % WEBP); await pa.wait_for_timeout(3200)
         await pa.fill('#m-shop','Yuvi Online Services'); await pa.click('text=Continue'); await pa.wait_for_timeout(400)
         await pa.click('nav >> text=Applications'); await pa.wait_for_timeout(300)
         await pa.click('text=New Application >> nth=0')
@@ -212,6 +213,22 @@ async def run_flow(pa,pb,b,state,shot,settle):
                 mob=await pa.inner_text('.card.glow .mono'); ok('aadhaar linked mobile shown in full, unmasked, as the site filled it', mob.strip()=='9876543210', mob)
             ok('no error box on success', not await pa.is_visible('#aad-err'))
             await pa.fill('[data-k="aad.otp"]','246810'); await pa.click('button:has-text("Verify")'); await pa.wait_for_function("(function(){var s=NAUI_state();return !s.busy})()"); await pa.wait_for_timeout(1500)
+            if NAMEMM:
+                body=await pa.inner_text('body')
+                ok('1.1.4 name mismatch: friendly state, not a plain error', await pa.is_visible('#aad-name') and 'Name Does Not Match Aadhaar - Edit The Name Below And Verify Again' in body and not await pa.is_visible('#aad-err'), body[:300])
+                ok('1.1.4 name mismatch: site message shown exactly', 'Name does not match with Aadhar Registered Name' in body)
+                ok('1.1.4 name mismatch: NOT verified, Submit stays locked (site flag N)', await pb.evaluate("document.getElementById('hdnIsAadharAuthenticated').value")!='Y' and not await pa.is_visible('.chip:has-text("Verified")'))
+                await shot('na07d-name-mismatch')
+                await pa.click('button:has-text("Edit The Name")'); await settle('[data-k="f.first"]', 20000)
+                ok('1.1.4 name mismatch: back at the name fields, everything else kept', await pa.input_value('[data-k="f.email"]')=='yuvi@example.com' and await pa.input_value('[data-k="f.last"]')=='PATIL')
+                await pa.fill('[data-k="f.first"]','ramesh kumar'); await pa.dispatch_event('[data-k="f.first"]','input')
+                await pa.click('button:has-text("Next")'); await settle('text=Aadhaar Authentication', 30000); await pa.wait_for_timeout(1200)
+                if not await pa.is_visible('[data-k="aad.no"]'):
+                    await pa.click('.check >> text=I Give My Consent'); await settle('[data-k="aad.no"]')
+                await pa.fill('[data-k="aad.no"]',GOOD); await pa.wait_for_timeout(200)
+                ok('1.1.4 name mismatch: a fresh Generate OTP is needed after the edit', await pa.is_visible('#aad-gen') and not await pa.is_visible('[data-k="aad.otp"]'))
+                await pa.click('#aad-gen'); await settle('[data-k="aad.otp"]', 30000); await pa.wait_for_timeout(500)
+                await pa.fill('[data-k="aad.otp"]','246810'); await pa.click('button:has-text("Verify")'); await pa.wait_for_function("(function(){var s=NAUI_state();return !s.busy})()"); await pa.wait_for_timeout(1500)
             if NOMATCH: ok('typed mobile went into the site box', await pb.evaluate("document.getElementById('txtAadharMobNo').value")=='9000003210')
             ok('aadhaar verified (site flag hdnIsAadharAuthenticated=Y)', await pa.is_visible('text=Verified') and await pb.evaluate("document.getElementById('hdnIsAadharAuthenticated').value")=='Y'); await shot('na07c-aadhaar-verified')
             dgs=await pa.evaluate("JSON.stringify(NAUI_state().diag.filter(function(d){return d.step==='aadhaar'||d.kind==='aadhaar'}))")
@@ -225,18 +242,50 @@ async def run_flow(pa,pb,b,state,shot,settle):
         await pa.wait_for_timeout(500)
         ok('aadhaar number gone from memory', await pa.evaluate("JSON.stringify(NAUI_state()).indexOf('%s')"%GOOD)==-1 and await pa.evaluate("JSON.stringify(NAUI_state()).indexOf('246810')")==-1)
         await settle('text=Declaration And Submit', 30000); await shot('na08-confirm')
-        await pa.click('.check >> text=I Agree To The Declaration'); await pa.fill('[data-k="p3.place"]','Pune')
+        await pa.click('.check >> text=' + ('I Agree To The Declaration' if OLD else 'I Agree To The Terms And Conditions')); await pa.fill('[data-k="p3.place"]','Pune')
+        if os.environ.get('E2E_DEBUG'): print('DBG after fill', await pa.input_value('[data-k="p3.place"]'), await pa.evaluate("NAUI_state().step"))
         await pa.click('text=Generate OTP (Mobile + Email)'); await settle('[data-otp]', 20000); await shot('na09-otp')
         ok('the site pop-up (where the OTP went) is shown in the app', await pa.is_visible('text=OTP Sent To') and 'xxxxxx3210' in await pa.inner_text('.card.acc'), await pa.inner_text('.card.acc'))
-        lg3=[x for x in await mocklog() if x['act']=='generateAadharOTPUIDAI']; ok('final Generate OTP did not click the Aadhaar button', len(lg3)==(1 if VAR=='resident' else 0), len(lg3))
+        lg3=[x for x in await mocklog() if x['act']=='generateAadharOTPUIDAI']; ok('final Generate OTP did not click the Aadhaar button', len(lg3)==((2 if NAMEMM else 1) if VAR=='resident' else 0), len(lg3))
         ok('two otp boxes from site (mobile + email)', await pa.locator('[data-otp]').count()==2, await pa.locator('[data-otp]').count())
         boxes=pa.locator('[data-otp]'); await boxes.nth(0).fill('111111'); await boxes.nth(1).fill('222222')
         log0=await mocklog(); ok('nothing submitted before the tap', not any(x['act']=='submitName' for x in log0))
+        if os.environ.get('E2E_DEBUG'): print('DBG p3', await pa.evaluate("JSON.stringify(NAUI_state().p3)"), 'place box:', await pa.input_value('[data-k="p3.place"]'))
         await pa.click('button:has-text("Submit To MSEDCL")'); await pa.wait_for_selector('text=Submit To MSEDCL? >> nth=0'); await shot('na10-submit-confirm')
         log1=await mocklog(); ok('confirm sheet blocks the submit', not any(x['act']=='submitName' for x in log1))
         await pa.click('#cb-yes')
+        if OLD:
+            await pa.wait_for_timeout(20000); await shot('old-after-submit')
+            bt=await pa.inner_text('body'); subs=len([x for x in await mocklog() if x['act']=='submitName'])
+            vis=await pa.is_visible('button:has-text("Submit To MSEDCL")')
+            print('OLD RESULT: submits reaching the site=%d, confirm screen visible again=%s, Application Submitted shown=%s, body starts: %s'%(subs, vis, 'Application Submitted' in bt, bt[:160].replace(chr(10),' | ')))
+            ok('OLD LOGIC (1.1.3) shows the confirm screen again (bug) or the site refused the tick', vis and 'Application Submitted' not in bt, bt[:200]); return
+        if SUBMODE in ('quiet','ackbare'):
+            await settle('text=Check Submission', 90000) if False else await pa.wait_for_selector('text=Do Not Submit Again', timeout=90000); await pa.wait_for_timeout(500); await shot('na10c-'+SUBMODE)
+            bt=await pa.inner_text('body')
+            ok('1.1.4 %s: unclear/probably screen, NOT the old form'%SUBMODE, ('Probably Submitted' in bt or 'Result Unclear' in bt) and not await pa.is_visible('button:has-text("Submit To MSEDCL")'), bt[:300])
+            ok('1.1.4 %s: nothing marked as submitted with a made-up number'%SUBMODE, not await pa.is_visible('#sub-no'))
+            n0=len([x for x in await mocklog() if x['act']=='submitName']); ok('1.1.4 %s: exactly one submit sent'%SUBMODE, n0==1, n0)
+            await pa.click('button:has-text("I Did Not Get An SMS")'); await pa.wait_for_selector('#cb-yes', timeout=5000); await shot('na10d-extra-confirm')
+            ok('1.1.4 %s: an explicit extra confirmation is needed before any further Submit'%SUBMODE, await pa.is_visible('text=Try Submitting Again?') and not await pa.is_visible('button:has-text("Submit To MSEDCL")'))
+            return
+        if SUBMODE=='ack':
+            await settle('text=Application Submitted', 60000); await pa.wait_for_timeout(500); await shot('na10b-submitted-ack')
+            appno=await pa.inner_text('#sub-no'); ok('1.1.4 ack page (no message element): Application Submitted + number', re.match(r'^\d{8}$',appno.strip()), appno)
+            ok('1.1.4 ack: Submit locked, Copy + Open Official Page', not await pa.is_visible('button:has-text("Submit To MSEDCL")') and await pa.is_visible('button:has-text("Copy")') and await pa.is_visible('button:has-text("Open Official Page")'))
+            await pa.click('button:has-text("Copy")'); await pa.wait_for_timeout(300); ok('1.1.4 ack: Copy puts the number on the clipboard', state['copied'] and state['copied'][-1]==appno.strip(), state['copied'])
+            dgr=await pa.evaluate("JSON.stringify(NAUI_state().diag.filter(function(d){return d.kind==='result'}))"); ok('1.1.4 ack: diagnostics: captured yes, length 8; number never printed', 'yes, length 8' in dgr and appno.strip() not in dgr, dgr[:300])
+            ok('1.1.4 ack: exactly one submit', len([x for x in await mocklog() if x['act']=='submitName'])==1)
+            return
+        await settle('text=Application Submitted', 40000); await pa.wait_for_timeout(500); await shot('na10b-submitted')
+        appno=await pa.inner_text('#sub-no'); ok('1.1.4: Application Submitted screen shows the 8 digit number big', re.match(r'^\d{8}$',appno.strip()), appno)
+        ok('1.1.4: Submit button is gone from the result screen (no double submit)', not await pa.is_visible('button:has-text("Submit To MSEDCL")') and await pa.is_visible('text=Do Not Submit Again'))
+        ok('1.1.4: Copy and Open Official Page buttons', await pa.is_visible('button:has-text("Copy")') and await pa.is_visible('button:has-text("Open Official Page")'))
+        ok('1.1.4: exactly ONE submit reached the site', len([x for x in await mocklog() if x['act']=='submitName'])==1)
+        dgr=await pa.evaluate("JSON.stringify(NAUI_state().diag.filter(function(d){return d.kind==='result'||d.kind==='check'}))")
+        ok('1.1.4: diagnostics hold the result but never the application number', appno.strip() not in dgr and 'result=ok' in dgr and 'yes, length 8' in dgr, dgr[:400])
+        await pa.click('button:has-text("Continue To Documents And Payment")')
         await settle('text=Upload Documents', 40000); await pa.wait_for_timeout(800); await shot('na11-docs')
-        appno=await pa.inner_text('.card.glow .mono'); ok('application number captured', re.match(r'^\d{8}$',appno.strip()), appno)
         sub=[x for x in await mocklog() if x['act']=='submitName']
         ok('site received title+name+reason+place', sub and sub[0]['fields'].get('title')==('Mr' if VAR=='resident' else 'M/S') and sub[0]['fields'].get('fullName')==('Mr RAMESH PATIL' if VAR=='resident' else 'M/S JAI LAXMI WELFARE SOCIETY') and sub[0]['fields'].get('place')=='Pune' and sub[0]['fields'].get('reason')=='11', sub[:1])
         ok('app saved the application in the list', await pa.evaluate("!!VS.findApp('%s')" % appno.strip()))

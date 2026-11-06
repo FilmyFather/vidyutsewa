@@ -2,6 +2,17 @@
 
 Generated from web/js/changelog.js (the same text the app shows in What's New). Newest first.
 
+## 1.1.4 (2026-11-07)
+
+- Submit Fix: The App Now Knows When The Official Site Accepted The Application And Shows An Application Submitted Screen
+- Application Number Is Shown Big, With Copy And Open Official Page Buttons
+- Submit Can Not Be Tapped Twice: After The First Submit The Button Is Locked To Avoid A Duplicate Application
+- Result Unclear Screen: If The Site Shows No Number, The App Says Check Your SMS Instead Of Showing The Old Form Again
+- Before Submit The App Checks The Official Page: Declaration Ticked, Place And OTP Filled
+- New I Agree To The Terms And Conditions Box On The Last Screen
+- Name Does Not Match Aadhaar Now Shows A Clear Message And Takes You Back To Edit The Name
+- Login OTP Screen Shows Which Mobile Or Email The OTP Was Sent To
+
 ## 1.1.3 (2026-11-06)
 
 - Windows Setup Installer: Installs Like A Normal App, With Desktop And Start Menu Shortcuts

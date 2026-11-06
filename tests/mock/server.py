@@ -9,6 +9,9 @@ from PIL import Image, ImageDraw, ImageFont
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8099
 VARIANT = sys.argv[2] if len(sys.argv) > 2 else 'society'
 import os
+SUBMIT = os.environ.get('MOCK_SUBMIT', 'classic')   # classic (upload page) | ack (acknowledgement page with the application number, no message element) | ackbare (acknowledgement page without a number) | quiet (same form page comes back, no message)
+DECL = os.environ.get('MOCK_DECL', 'native')   # native | handler (the site only counts a click on the box: .checked set from outside is not enough -> 'Please check Terms And Conditions')
+NAMEMM = os.environ.get('MOCK_NAMEMM', '')   # 1: the first Aadhaar verify answers 'Name does not match'
 MODE = os.environ.get('MOCK_LOGIN', 'classic')   # classic | ajax (real wss: ajax OTP step) | lag (ajax; the post-OTP page comes back unchanged once, logged-in on reload) | lagcreds (ajax; Generate OTP shows nothing, logged-in on reload)
 SESS = {}
 LOG = []
@@ -153,7 +156,7 @@ function callAjax(m,u,params,async_,cb){var x=new XMLHttpRequest();x.open(m,u,fa
 <button type="button" id="SubmitButton2" class="btn" onclick="genOtp()">Generate OTP</button>
 <table id="otprow" style="display:none"><tr><td>Mobile OTP :*</td><td><input type="text" id="txtMobOtp" name="mobOtp" maxlength="6"></td><td>Email OTP :*</td><td><input type="text" id="txtEmailOtp" name="emailOtp" maxlength="6"></td></tr></table>
 <div class="hd">I hereby declare that</div><ol><li>I will abide by the provisions of Electricity Act 2003.</li><li>The above information is true and if any false information is observed...</li></ol>
-<table><tr><td><input type="checkbox" id="chkAgree" name="agree"> We agree to the terms and conditions</td><td>Place : <input type="text" id="txtPlace" name="place"></td></tr></table>
+<table><tr><td><input type="checkbox" id="chkAgree" name="agree" onclick="window._decl=this.checked"> We agree to the terms and conditions</td><td>Place : <input type="text" id="txtPlace" name="place"></td></tr></table>
 <p class="err">Please <a href="#">Click Here</a> to upload mandatory relevant document for Name change after submit.</p>
 <button type="button" id="btnSubmit" class="btn" onclick="sub()">Submit</button><div class="err" id="lblMsg">%(msg)s</div></form>
 <script>
@@ -162,8 +165,8 @@ var RES=%(res)s;
 function comp(){var t=document.getElementById('ddlTitle').value;var ms=(t=='M/S');var m=document.getElementById('txtConsumerMiddleName'),l=document.getElementById('txtConsumerLastName');if(ms){m.value='';l.value=''}m.style.display=ms?'none':'';l.style.display=ms?'none':'';var p=[t,txtConsumerFirstName.value,m.value,l.value].filter(Boolean).join(' ');document.getElementById('txtConsumerFullName').value=p.slice(0,50)}
 document.getElementById('ddlTitle').onchange=comp;
 function genOtp(){if(!confirm('You will get OTP on your registered Mobile Number: xxxxxx3210 and on Email Address for Change of Name application.\\n Do you want to confirm?'))return;fetch('wss?uiActionName=genOtp',{method:'POST',credentials:'include',body:'m='+txtMobile.value+'&e='+txtEmail.value,headers:{'Content-Type':'application/x-www-form-urlencoded'}}).then(r=>r.text()).then(t=>{alert(t);document.getElementById('otprow').style.display=''})}
-function sub(){if(hdnIsAadharMandatory.value=='Y'&&hdnIsAadharAuthenticated.value=='N'&&!/society|trust|ltd|chs/i.test(txtConsumerFullName.value)){alert('For Residential Consumers, Aadhaar number authentication is mandatory');return}if(!document.getElementById('chkAgree').checked){alert('Please accept the terms and conditions');return}if(confirm('Are you sure you want to submit?'))document.getElementById('cf').submit()}
-</script>""" % {'no': c['no'], 'bu': c['bu'], 'name': c['name'], 'cat': c['cat'], 'aadh': aadh, 'aadjs': AADJS, 'msg': msg, 'res': 'true' if res else 'false'}
+function sub(){if(hdnIsAadharMandatory.value=='Y'&&hdnIsAadharAuthenticated.value=='N'&&!/society|trust|ltd|chs/i.test(txtConsumerFullName.value)){alert('For Residential Consumers, Aadhaar number authentication is mandatory');return}if(!document.getElementById('chkAgree').checked||(%(declmode)s=='handler'&&!window._decl)){alert('Please check Terms And Conditions');return}if(confirm('Are you sure you want to submit?'))document.getElementById('cf').submit()}
+</script>""" % {'no': c['no'], 'bu': c['bu'], 'name': c['name'], 'cat': c['cat'], 'aadh': aadh, 'aadjs': AADJS, 'msg': msg, 'res': 'true' if res else 'false', 'declmode': repr(DECL)}
 
 def page_upload(sess, msg=''):
     docs = ['Proof of Title change - Registered Agreement / possession letter', 'Consent Letter For Sd Transfer', 'Form X'] if not sess.get('spell') else ['Correction Document']
@@ -288,7 +291,9 @@ class H(BaseHTTPRequestHandler):
         if act == 'validateAadharOTPUIDAI':
             ok = fields.get('AadharOTP') == '246810' and re.fullmatch(r'\d{12}', fields.get('Aadhar', ''))
             if not ok: return self.send(json.dumps({'Ret': 'N', 'ErrorDesc': 'Invalid OTP'}), 'application/json')
-            return self.send(json.dumps({'Ret': 'Y', 'ErrorDesc': '', 'Poi': {'name': fields.get('ConsumerFullName', '')}}), 'application/json')
+            nm = fields.get('ConsumerFullName', '')
+            if NAMEMM and not sess.get('mm_done'): sess['mm_done'] = True; nm = 'SOMEBODY ELSE ENTIRELY'
+            return self.send(json.dumps({'Ret': 'Y', 'ErrorDesc': '', 'Poi': {'name': nm}}), 'application/json')
         if act == 'genOtp': return self.send('OTP sent to registered mobile and email')
         if act == 'submitName':
             err = []
@@ -302,7 +307,11 @@ class H(BaseHTTPRequestHandler):
             if not fields.get('place'): err.append('Place required')
             sess['spell'] = fields.get('reason') == '10'
             if err: return self.send(page_form(sess, '; '.join(err)))
-            sess['appno'] = '80%06d' % random.randint(0, 999999); sess['submitted'] = fields; return self.send(page_upload(sess))
+            sess['appno'] = '80%06d' % random.randint(0, 999999); sess['submitted'] = fields
+            if SUBMIT == 'ack': return self.send(CSS + '<div>Dear Consumer,application %s for Change of Name is received on date 06-Nov-2026 for consumer no. %s.MSEDCL</div><p><a href="wss?uiActionName=getMyAccount">Home</a></p>' % (sess['appno'], fields.get('consumerNo', '002211661987')))
+            if SUBMIT == 'ackbare': return self.send(CSS + '<div>Thank you. Your request has been processed.</div>')
+            if SUBMIT == 'quiet': return self.send(page_form(sess))
+            return self.send(page_upload(sess))
         if act == 'uploadDoc':
             slot = fields.get('slot'); fk = [k for k in files if str(k).startswith('docFile')]
             if not fk or not files[fk[0]][0]: return self.send(page_upload(sess, 'Please choose a file'))

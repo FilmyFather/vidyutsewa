@@ -298,3 +298,40 @@ t('search: empty query = everything; the billing unit / division text is searche
   assert.deepStrictEqual(P.filterConsumers(CONS, 'kalyan').map((c) => c.cno), ['150000500037', '150000500074']);
   assert.deepStrictEqual(P.filterConsumers(CONS, '074').map((c) => c.cno), ['150000500074']);
 });
+
+// ---- 1.1.4: submit result, double-submit guard inputs, name mismatch, login OTP destination ----
+const SMS = 'Dear Consumer,application 87483291 for Change of Name is received on date 06-Nov-2026 for consumer no. 002211661987.MSEDCL';
+t('submit: the real acknowledgement text gives kind ok with the 8 digit number', () => {
+  assert.strictEqual(P.parseAppNo(SMS), '87483291');
+  const r = P.classifySubmit({ appNo: P.parseAppNo(SMS), text: SMS, msgs: [], alive: false, settledMs: 0, elapsed: 500 });
+  assert.strictEqual(r.kind, 'ok');
+});
+t('submit: THE REAL BUG - page navigated, no message element, no number: never "wait forever" and never the old form; after settling it is "probably", never ok', () => {
+  assert.strictEqual(P.classifySubmit({ appNo: '', text: 'Thank you', msgs: [], alive: false, settledMs: 1000, elapsed: 1000 }).kind, 'wait');
+  assert.strictEqual(P.classifySubmit({ appNo: '', text: 'Thank you', msgs: [], alive: false, settledMs: 7000, elapsed: 7000 }).kind, 'probably');
+});
+t('submit: an acknowledgement page text without a number is still ok', () => {
+  assert.strictEqual(P.classifySubmit({ appNo: '', text: 'Acknowledgement of your request', msgs: [], alive: false, settledMs: 0, elapsed: 900 }).kind, 'ok');
+});
+t('submit: site error is an error (nothing sent): Please check Terms And Conditions', () => {
+  const r = P.classifySubmit({ appNo: '', text: 'form', msgs: ['Please check Terms And Conditions'], alive: true, settledMs: 0, elapsed: 900 });
+  assert.strictEqual(r.kind, 'error'); assert.ok(/terms/i.test(r.msg));
+});
+t('submit: still on the form, no message: wait, then unclear after 45 s (never ok)', () => {
+  assert.strictEqual(P.classifySubmit({ appNo: '', text: 'form', msgs: [], alive: true, settledMs: 0, elapsed: 2000 }).kind, 'wait');
+  assert.strictEqual(P.classifySubmit({ appNo: '', text: 'form', msgs: [], alive: true, settledMs: 0, elapsed: 46000 }).kind, 'unclear');
+});
+t('submit: Diagnostics text never carries a long number (OTP / mobile / application number)', () => {
+  const r = P.redactDigits(SMS + ' otp 123456'); assert.ok(!/\d{4,}/.test(r)); assert.ok(/\[8 digits\]/.test(r));
+});
+t('aadhaar: name mismatch message is recognised (and plain success is not)', () => {
+  assert.ok(P.aadhaarNameMismatch(['OTP Verified. However, Name does not match with Aadhar Registered Name at UIDAI. Please re-enter the name as per Aadhar Registered Name.']));
+  assert.ok(!P.aadhaarNameMismatch(['OTP Verified. Name matched with Aadhar Registered Name.']));
+  assert.ok(!P.aadhaarNameMismatch(['Invalid OTP']));
+});
+t('login: "OTP Sent To" text is taken from the page text', () => {
+  const x = P.loginOtpTo('Login OTP has been successfully sent to following contact details. Mobile: 98XXXXXX94 Email: a****@gmail.com Please enter the OTP and click the Login button.');
+  assert.ok(/98XXXXXX94/.test(x) && /gmail/.test(x), x);
+  assert.strictEqual(P.loginOtpTo('Nothing here'), '');
+});
+console.log(`\n${n} tests passed (incl. 1.1.4)`);

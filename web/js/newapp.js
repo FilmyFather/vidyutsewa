@@ -42,7 +42,7 @@
   function diag(kind, what, ok, detail) {
     if (!NA) return;
     if (NA.step === 'aadhaar' || kind === 'aadhaar') { what = redactAad(what); detail = redactAad(detail); }   // the Aadhaar step never logs a number, a mobile or an OTP
-    NA.diag.push({ at: Date.now(), step: NA.step, kind: kind, what: what, ok: ok !== false, detail: String(detail || '').slice(0, kind === 'state' ? 900 : 300) });
+    NA.diag.push({ at: Date.now(), step: NA.step, kind: kind, what: what, ok: ok !== false, detail: String(detail || '').slice(0, (kind === 'state' || kind === 'result') ? 900 : 300) });
     if (NA.diag.length > 300) NA.diag.shift();
   }
   async function fillSite(label, spec, value, required) {
@@ -101,11 +101,11 @@
       f: { title: '', first: '', middle: '', last: '', email: '', mobile: '', reason: '', place: '', titles: [], reasons: [], req: {}, siteFull: '', agree: false },
       aad: { consent: false, hasNo: false, optional: false, required: false, waived: false, no: '', otp: '', mob: '', note: '', sent: false, mobile: '', last4: '', mobEdit: false, err: '', msg: '', verified: false, done: false, siteHas: false, tried: 0 },
       cq: '', names: {},
-      p3: { otp: {}, otpFields: [], sent: false, msg: '', agree: false, place: '' },
+      p3: { otp: {}, otpFields: [], sent: false, msg: '', agree: false, place: '', officialTick: '' }, sub: null, submitting: false,
       appNo: '', slots: [], uploadDone: false, payFee: 0, wait: { until: 0, last: 0, status: '', rows: [] }, receipt: null, gen: null, savedId: '' };
   }
   var STEPS = ['login', 'accounts', 'form', 'aadhaar', 'confirm', 'docs', 'pay'];
-  function stepNo() { var m = { login: 1, accounts: 2, form: 3, aadhaar: 4, confirm: 5, docs: 6, pay: 7, wait: 7, receipt: 7 }; return m[NA.step] || 0; }
+  function stepNo() { var m = { login: 1, accounts: 2, form: 3, aadhaar: 4, confirm: 5, submitted: 5, docs: 6, pay: 7, wait: 7, receipt: 7 }; return m[NA.step] || 0; }
 
   UI.newApp = function () {
     if (NA && NA.savedId === '' && NA.step !== 'start' && NA.step !== 'receipt' && NA.appNo === '' && Date.now() - (NA.at || 0) < 600000) { /* resume a flow left a moment ago */ }
@@ -189,7 +189,7 @@
   }
   function getPath(key) { var o = NA, p = key.split('.'); for (var i = 0; i < p.length; i++) o = o ? o[p[i]] : ''; return o == null ? '' : o; }
   function tick(key, label, on) { return '<div class="check ' + (on ? 'on' : '') + '" onclick="NAUI.tickK(\'' + key + '\')"><span class="box">' + (on ? ic('check', 14) : '') + '</span><span>' + label + '</span></div>'; }
-  NAUI.tickK = function (key) { readInputs(); var p = key.split('.'), o = NA; for (var i = 0; i < p.length - 1; i++) o = o[p[i]]; o[p[p.length - 1]] = !o[p[p.length - 1]]; if (key === 'aad.consent') return NAUI.aadConsent(); rerender(true); };
+  NAUI.tickK = function (key) { readInputs(); var p = key.split('.'), o = NA; for (var i = 0; i < p.length - 1; i++) o = o[p[i]]; o[p[p.length - 1]] = !o[p[p.length - 1]]; if (key === 'aad.consent') return NAUI.aadConsent(); rerender(true); if (key === 'p3.agree') return NAUI.syncDecl(); };
   // on EVERY step screen: Open Official Page + Diagnostics, always visible near the footer
   function fallbackLink() { return '<div class="fbrow" style="text-align:center"><button class="btn ghost sm" onclick="NAUI.official()">' + ic('ext', 14) + t('Open Official Page') + '</button> <button class="btn ghost sm" onclick="NAUI.diag()">' + ic('info', 14) + t('Diagnostics') + '</button></div>'; }
 
@@ -256,7 +256,7 @@
     var L = NA.login, cap = L.cap ? '<img src="' + L.cap + '" style="height:54px;border-radius:8px;background:#fff;image-rendering:auto" alt="captcha">' : '<div class="small muted">' + t('Captcha Not Loaded') + '</div>';
     var body = stepsBar() + '<div class="card"><div class="row"><span class="acc">' + ic('lock', 18) + '</span><div class="small"><b>' + t('Login To MSEDCL (WSS)') + '</b><div class="muted tiny">' + t('Same User Name And Password As The Official Website.') + '</div></div></div></div>' + errBox() + infoBox() + busyBox();
     if (L.needOtp) {
-      body += '<div class="card"><div class="small">' + esc(L.otpMsg || t('The Official Site Sent An OTP To The Registered Mobile.')) + '</div></div>' + fld(t('OTP'), 'login.otp', { mono: 1, inputmode: 'numeric', max: 8 }) +
+      body += '<div class="card">' + (L.otpTo ? '<div class="tiny muted">' + t('OTP Sent To') + '</div><div class="small" style="font-weight:700;margin-bottom:6px">' + esc(L.otpTo) + '</div>' : '') + '<div class="small">' + esc(L.otpMsg || t('The Official Site Sent An OTP To The Registered Mobile.')) + '</div></div>' + fld(t('OTP'), 'login.otp', { mono: 1, inputmode: 'numeric', max: 8 }) +
         '<button class="btn pri" ' + (NA.busy ? 'disabled' : '') + ' onclick="NAUI.doLogin()">' + t('Verify OTP And Login') + '</button>';
     } else {
       body += fld(t('User Name'), 'login.user', { cap: 'off' }) + fld(t('Password'), 'login.pass', { type: 'password' }) +
@@ -347,8 +347,9 @@
       var sm = String(w.s.main || w.s.text || ''), mm = sm.match(/Mobile\s*(?:Number|No\.?)\s*:?\s*([X*x\d]{4,})/i), em = sm.match(/E-?mail\s*(?:ID)?\s*:?\s*(\S+@\S+|[X*x\w.]+@[\w.*]+)/i);
       var popup = (r.msgs || []).filter(function (x) { return /otp/i.test(x) && /sent|send|contact/i.test(x); })[0] || '';          // the site's own pop-up: "OTP has been successfully sent to following contact details ..."
       var det = [mm ? t('Mobile') + ': ' + mm[1] : '', em ? t('Email') + ': ' + em[1] : ''].filter(function (x) { return x && popup.indexOf(x.split(': ')[1]) < 0; }).join(' \u2022 ');
-      L.needOtp = true; L.otpMsg = ((popup || r.errs.filter(function (x) { return /otp/i.test(x); })[0] || (t('The Official Site Sent An OTP To The Registered Mobile.'))) + (det ? ' ' + det : '')).slice(0, 420);
-      diag('page', 'login otp pop-up', !!popup, popup || '(no pop-up text; page text used)');
+      var toTxt = P.loginOtpTo(sm) || det;
+      L.needOtp = true; L.otpMsg = ((popup || r.errs.filter(function (x) { return /otp/i.test(x); })[0] || (t('The Official Site Sent An OTP To The Registered Mobile.'))) + (det ? ' ' + det : '')).slice(0, 420); L.otpTo = toTxt.slice(0, 220);
+      diag('page', 'login otp info', true, (popup ? 'pop-up: ' + popup : 'from the page text') + (toTxt ? ' | sent to: ' + toTxt : ''));
       NA.busy = ''; return rerender(false);
     }
     if (w.kind !== 'accounts' && w.kind !== 'home') {
@@ -504,6 +505,7 @@
     var F = NA.f, n = fullName(), req = F.req || {};
     var titles = F.titles.length ? F.titles : [];
     var body = stepsBar() + errBox() + busyBox() +
+      (F.mmBanner ? '<div class="warn" style="border-color:rgba(200,150,40,.7)">' + ic('alert', 16) + '<div><b>' + t('Name Does Not Match Aadhaar - Edit The Name Below And Verify Again') + '</b>' + (F.mmBanner.trim() ? '<div class="small" style="margin-top:6px">' + esc(F.mmBanner) + '</div>' : '') + '</div></div>' : '') +
       '<div class="row between"><div class="sec" style="margin:0">' + t('New Consumer Details') + '</div><span id="nm-count" class="chip ' + (n.length >= P.NAME_MAX ? 'c-r' : 'c-c') + '">' + t('Name Length') + ': ' + n.length + ' / ' + P.NAME_MAX + '</span></div>' +
       '<div class="card" style="display:flex;flex-direction:column;gap:10px">' +
       (NA.old.length ? '<div class="small muted">' + NA.old.map(function (r) { return esc(r[0].replace(/[:*\s]+$/, '')) + ': <b>' + esc(r[1]) + '</b>'; }).join(' \u2022 ') + '</div>' : '') +
@@ -542,6 +544,7 @@
       if (!full.ro) await fillSite('Full Name', SP.full, fullName(), false);
     } else diag('field', 'full name compare', true, F.siteFull);
     if (NA.failed.length) return fail(t('Could Not Fill On The Official Page') + ': ' + NA.failed.join(', ') + '.');
+    F.mmBanner = '';
     await NAUI.loadAadhaar();
   };
 
@@ -550,7 +553,7 @@
    * alerts are shown as an ERROR under the button, and the linked-mobile box appears only when the page really returned a number. */
   NAUI.loadAadhaar = async function () {
     var s = await snap(); var A = NA.aad;
-    A.consent = false; A.sent = false; A.mobile = ''; A.last4 = ''; A.mobEdit = false; A.err = ''; A.msg = ''; A.verified = false; A.no = ''; A.otp = ''; A.mob = ''; A.done = false; A.tried = 0;
+    A.consent = false; A.sent = false; A.mobile = ''; A.last4 = ''; A.mobEdit = false; A.err = ''; A.msg = ''; A.verified = false; A.no = ''; A.otp = ''; A.mob = ''; A.done = false; A.tried = 0; A.nameMismatch = false; A.mmMsg = '';
     var cons = await Drv.d('has', SP.aadConsent).catch(function () { return { ok: false }; });
     var no = await Drv.d('has', SP.aadNo).catch(function () { return { ok: false }; });     // the number box is hidden until the consent tick: look for it even when hidden
     A.siteHas = !!(cons && cons.ok) || !!(no && no.ok);
@@ -579,6 +582,8 @@
         body += fld(t('Aadhaar Number'), 'aad.no', { mono: 1, inputmode: 'numeric', max: 12 }) +
           '<div id="aad-bad" class="tiny" style="color:var(--cr);' + (bad ? '' : 'display:none') + '">' + t('This Aadhaar Number Looks Invalid, Please Check') + '</div>' +
           '<button id="aad-gen" class="btn pri" ' + (P.validAadhaar(A.no) && !NA.busy ? '' : 'disabled') + ' onclick="NAUI.aadGen()">' + t(A.sent ? 'Send OTP Again' : 'Generate OTP') + '</button>';
+        if (A.nameMismatch) body += '<div class="warn" id="aad-name" style="border-color:rgba(200,150,40,.7)">' + ic('alert', 16) + '<div><b>' + t('Name Does Not Match Aadhaar - Edit The Name Below And Verify Again') + '</b><div class="small" style="margin-top:6px">' + t('The OTP Was Right. The Official Site Compared The Name With The Aadhaar Record.') + '</div><div class="small" style="margin-top:6px"><b>' + t('The Official Site Said') + ':</b> ' + esc(A.mmMsg) + '</div>' +
+          '<div class="small" style="margin-top:6px">' + t('After You Edit The Name You Need A New OTP: Generate OTP And Verify Again.') + '</div><button class="btn pri sm" style="margin-top:8px" onclick="NAUI.mmEdit()">' + ic('back', 15) + t('Edit The Name') + '</button></div></div>';
         if (A.err) body += '<div class="warn" id="aad-err" style="border-color:rgba(200,80,70,.5)">' + ic('alert', 16) + '<div><b>' + t('The Official Site Said') + ':</b> ' + esc(A.err) + '<div style="margin-top:6px"><button class="btn ghost sm" onclick="NAUI.diag()">' + ic('info', 14) + t('Diagnostics') + '</button></div></div></div>';
         if (A.sent) {
           if (A.mobile) body += '<div class="card glow"><div class="tiny muted">' + t('Aadhaar Linked Mobile (As Shown By The Official Site)') + '</div><div class="mono" style="font-size:20px;font-weight:700;margin-top:4px">' + esc(A.mobile) + '</div></div>';
@@ -595,6 +600,7 @@
       '<button class="btn pri" ' + (NA.busy ? 'disabled' : '') + ' onclick="NAUI.aadNext()">' + ((A.optional && !A.verified) ? t('Skip') : t('Next')) + ' ' + ic('right', 17) + '</button></div>' + fallbackLink() + privacy();
     return { body: body, title: t('Aadhaar') };
   };
+  NAUI.mmEdit = function () { readInputs(); NA.f.mmBanner = NA.aad.mmMsg || ' '; setStep('form'); };   // back to the name fields; everything else stays as typed
   NAUI.aadConsent = async function () {
     var A = NA.aad; A.sent = false; A.verified = false; A.err = ''; busy(t('Updating The Official Page...'));
     await fillSite('Aadhaar Consent', SP.aadConsent, A.consent, false);
@@ -661,7 +667,11 @@
     A.verified = st.authed === 'Y';
     diag('aadhaar', 'verify result', A.verified, 'button #' + (st.verId || '?') + ' | authenticated flag ' + (st.authed || '?') + ' | site messages: ' + (all.length ? all.join(' / ') : '(none)'));
     A.msg = A.verified ? (rep.text || t('Verified')).slice(0, 240) : ''; wipeAad(); A.no = ''; A.otp = '';
-    if (!A.verified) A.err = rep.error || rep.text || delta.slice(0, 240) || t('No Answer From The Official Site. Check And Try Again.');
+    A.nameMismatch = false; A.mmMsg = '';
+    if (!A.verified && (P.aadhaarNameMismatch(all) || P.aadhaarNameMismatch(delta))) {          // 1.1.4: OTP was right, the NAME is the problem: a clear state, not a failure
+      A.nameMismatch = true; A.mmMsg = (all.filter(function (x) { return P.aadhaarNameMismatch(x); })[0] || delta).slice(0, 300); A.err = '';
+      diag('aadhaar', 'name does not match Aadhaar', true, 'the person is sent back to the name fields; a fresh Generate OTP is needed after the edit');
+    } else if (!A.verified) A.err = rep.error || rep.text || delta.slice(0, 240) || t('No Answer From The Official Site. Check And Try Again.');
     NA.busy = ''; rerender(true);
   };
   // Aadhaar number and OTP live only while this page is open: wipe the boxes too, or the next re-render would read them back
@@ -688,7 +698,8 @@
     var body = stepsBar() + errBox() + busyBox() +
       '<div class="card"><div class="kv">' + t('New Name') + ': <b>' + esc(fullName()) + '</b></div><div class="kv">' + t('Consumer No') + ': <b class="mono">' + esc(NA.sel) + '</b></div><div class="kv">' + t('Reason') + ': <b>' + esc(F.reason) + '</b></div>' +
       '<div class="kv">' + t('Email') + ': <b>' + esc(F.email) + '</b> \u2022 ' + t('Mobile') + ': <b class="mono">' + esc(F.mobile) + '</b></div></div>' +
-      '<div class="card">' + tick('p3.agree', t('I Agree To The Declaration And Terms And Conditions.'), P3.agree) + '</div>' +
+      '<div class="card">' + tick('p3.agree', t('I Agree To The Terms And Conditions (As On The Official Site)'), P3.agree) +
+        '<div id="decl-st" class="tiny">' + declStHtml() + '</div></div>' +
       fld(t('Place'), 'p3.place', { cap: 'words' }) +
       '<button class="btn out" ' + (NA.busy ? 'disabled' : '') + ' onclick="NAUI.genOtp()">' + ic('msg', 17) + (P3.sent ? t('Resend OTP') : t('Generate OTP (Mobile + Email)')) + '</button>';
     if (P3.sent) {
@@ -703,6 +714,7 @@
   };
   NAUI.genOtp = async function () {
     readInputs(); var P3 = NA.p3;
+    if (NA.sub) return;
     busy(t('Asking The Official Site To Send The OTP...'));
     var before = (await snap() || {}).text || '';
     var a = await act('click Generate OTP', function () { return Drv.d('click', { ids: ['SubmitButton2'], notIds: ['btnUIDAIGenerateOTP', 'btnUIDAIVerifyOTP'], any: ['generate otp', 'get otp', 'send otp', 'resend otp'], not: ['aadhaar', 'aadhar', 'verify', 'submit'], noNav: true, last: true }); }, 6000);
@@ -716,41 +728,141 @@
     P3.otpFields = otpFieldsOf(s || { fields: [] }).map(function (f) { return { i: f.i, label: f.label || f.id || f.name, id: f.id, name: f.name }; });
     P3.sent = true; NA.busy = ''; diag('page', 'otp fields', P3.otpFields.length > 0, P3.otpFields.map(function (f) { return f.label; }).join(' / ')); rerender(true);
   };
-  NAUI.submit = async function () {
-    readInputs(); var P3 = NA.p3;
-    if (!P3.agree) return fail(t('Tick The Declaration First'));
-    if (!P3.place.trim()) return fail(t('Enter The Place'));
-    if (P3.otpFields.some(function (f) { return !String(P3.otp[f.i] || '').trim(); })) return fail(t('Enter The OTP'));
-    if (!(await H.confirmBox(t('Submit To MSEDCL?'), t('This Sends The Application To MSEDCL. It Cannot Be Taken Back From The App.') + '<br><br><b>' + esc(fullName()) + '</b>', t('Submit')))) return;
+  /* ---- Submit: ONE tap, verified before it goes out, and the result is read from the page afterwards (1.1.4) ----
+   * Why: on 1.1.2 the first Submit WORKED (the site posted the form and loaded a new page), but the app only looked for an application number,
+   * did not find it, showed the old confirm screen again and let the person tap Submit twice more. Now the page is marked before the click,
+   * so a replaced page is recognised, and once Submit was clicked it can not be clicked again from this screen. */
+  async function pageIsAlive(mk) {
+    var r = await Drv.ev('window.__vsdMark||""', 6000).then(function (x) { return x; }).catch(function () { return null; });
+    var v = r && typeof r === 'object' && 'v' in r ? r.v : r;
+    return v === mk;
+  }
+  async function checkReady() {
+    var rd = await Drv.d('submitReady', SP.submit, SP.place).catch(function () { return null; });
+    var d = rd && rd.v !== undefined ? rd.v : rd;
+    return d || { declaration: false, place: false, otp: false, declFound: false };
+  }
+  async function tickReal(want) {
+    var r = await Drv.d('tickDeclaration', want, SP.declare).catch(function (e) { return { ok: false, err: e.message }; });
+    r = (r && r.v !== undefined && r.ok === undefined) ? r.v : r;
+    if (!r || !r.ok) { await sleep(400); r = await Drv.d('tickDeclaration', want, SP.declare).catch(function () { return { ok: false }; }); r = (r && r.v !== undefined && r.ok === undefined) ? r.v : r; }   // retry once
+    diag('field', 'Declaration (official page ' + (want ? 'tick' : 'untick') + ')', r && r.ok, 'checked=' + (r && r.checked) + ' via ' + ((r && r.how) || '?') + ' tries ' + ((r && r.tries) || 0) + (r && r.err ? ' | ' + r.err : ''));
+    return r;
+  }
+  function declStHtml() {         // small status line under the visible Terms box; updated in place so typing in other boxes is never disturbed
+    var o = NA && NA.p3 && NA.p3.officialTick; if (!o) return '';
+    return '<div style="margin-top:6px;color:' + (o === 'yes' ? 'var(--ok,#3a9a63)' : 'var(--cr)') + '">' + (o === 'yes' ? '\u2714 ' + t('Ticked On The Official Page') : o === 'no' ? t('Not Ticked On The Official Page Yet') : t('Could Not Check The Official Page Tick')) + '</div>';
+  }
+  NAUI.syncDecl = async function () {          // the visible "I Agree" box drives the real one, right when it is tapped
+    if (!NA || NA.step !== 'confirm' || NA.busy) return;
+    var r = await tickReal(!!NA.p3.agree);
+    NA.p3.officialTick = r && r.ok ? (r.checked ? 'yes' : 'no') : 'unknown';
+    var st = root().querySelector('#decl-st'); if (st) st.innerHTML = declStHtml(); else rerender(true);
+  };
+  function pageExcerpt(s) { return P.redactDigits(String((s && (s.main || s.text)) || '')).replace(/\s+/g, ' ').trim().slice(0, 420); }
+  async function doSubmit() {
+    var P3 = NA.p3;
     busy(t('Submitting To MSEDCL...')); NA.failed = [];
-    await fillSite('Declaration', SP.declare, true, true);
-    await fillSite('Place', SP.place, P3.place.trim(), true);
+    // 1) declaration: real click, verified; Place: typed key by key; OTP boxes
+    var tk = await tickReal(true);
+    var pl = await Drv.d('fillPlace', P3.place.trim(), SP.place).catch(function () { return { ok: false }; }); pl = (pl && pl.v !== undefined && pl.ok === undefined) ? pl.v : pl;
+    diag('field', 'Place', pl && pl.ok, 'typed length ' + P3.place.trim().length + ' | box #' + ((pl && pl.id) || '?'));
+    if (!pl || !pl.ok) await fillSite('Place', SP.place, P3.place.trim(), true);
     for (var k = 0; k < P3.otpFields.length; k++) {
       var f = P3.otpFields[k], r = await Drv.d('fillIdx', f.i, String(P3.otp[f.i]).trim()).catch(function () { return { ok: false }; });
-      if (!r || !r.ok) { // the page may have redrawn: find by label instead
-        r = await Drv.d('fill', { tag: 'input', any: [f.id, f.name, f.label], notType: NOT_BOX, editable: true }, String(P3.otp[f.i]).trim());
-      }
+      if (!r || !r.ok) { r = await Drv.d('fill', { tag: 'input', any: [f.id, f.name, f.label], notType: NOT_BOX, editable: true }, String(P3.otp[f.i]).trim()); }
       diag('field', 'OTP ' + f.label, r && r.ok, (r && r.err) || '');
       if (!r || !r.ok) NA.failed.push('OTP');
     }
     if (NA.failed.length) return fail(t('Could Not Fill On The Official Page') + ': ' + NA.failed.join(', ') + '.');
+    // 2) look at the official page itself BEFORE the click: anything missing is told here, Submit is not sent
+    var rd = await checkReady();
+    diag('check', 'before submit', !!(rd.declaration && rd.place && rd.otp && rd.submitBtn), 'declaration ticked ' + (rd.declaration ? 'yes' : 'NO') + ' | place filled ' + (rd.place ? 'yes' : 'NO') + ' | otp boxes ' + (rd.otpBoxes || 0) + ' filled ' + (rd.otp ? 'yes' : 'NO') + ' | submit button ' + (rd.submitBtn ? 'found' : 'MISSING'));
+    if (!rd.declaration) { P3.officialTick = 'no'; return fail(t('Please Tick The Declaration')); }
+    if (!rd.place) return fail(t('Please Enter The Place'));
+    if (!rd.otp) return fail(t('Please Enter The OTP'));
+    if (!rd.submitBtn) return fail(t('Could Not Find The Submit Button'));
+    // 3) mark the page, click once, then watch what the site does
+    var mk = await Drv.d('mark'); mk = mk && mk.v !== undefined && typeof mk === 'object' ? mk.v : mk;
+    NA.sub = { kind: 'sent', at: Date.now(), appNo: '', text: '', msg: '' };           // from this moment Submit can not be tapped again
     var a = await act('click Submit (person tapped)', function () { return Drv.d('click', SP.submit); }, 20000);
-    if (a.r && a.r.ok === false) return fail(t('Could Not Find The Submit Button'));
-    var appNo = '', s = null;
-    for (var i = 0; i < 12; i++) {
-      s = await snap(); appNo = P.parseAppNo((s && s.text || '') + ' ' + a.msgs.join(' '));
-      if (appNo) break;
-      var errs = siteErrors(s, a.msgs).filter(function (x) { return !/^(submit|generate otp)$/i.test(x); });
-      if (i > 2 && errs.length && !appNo && (await classify()).kind === 'form') break;
+    if (a.r && a.r.ok === false) { NA.sub = null; return fail(t('Could Not Find The Submit Button')); }
+    diag('act', 'submit click result', true, 'page changed: ' + (a.navigated ? 'yes' : 'not yet') + ' | alerts: ' + (a.msgs.length ? a.msgs.length : 'none'));
+    var t0 = Date.now(), msgs = a.msgs.slice(), res = { kind: 'wait' }, s = null, goneAt = a.navigated ? Date.now() : 0, appNo = '';
+    busy(t('Waiting For The Official Site To Answer...'));
+    while (Date.now() - t0 < 60000) {
+      await pullMsgs(msgs);
+      var alive = a.navigated ? false : await pageIsAlive(mk);
+      if (!alive && !goneAt) goneAt = Date.now();
+      s = await snap();
+      var text = (s && (s.text || s.main)) || '';
+      appNo = P.parseAppNo(text + ' ' + msgs.join(' '));
+      res = P.classifySubmit({ appNo: appNo, text: text, msgs: msgs, alive: alive, settledMs: goneAt ? Date.now() - goneAt : 0, elapsed: Date.now() - t0 });
+      if (res.kind !== 'wait') break;
       await sleep(900);
     }
-    if (!appNo) {
-      var e2 = siteErrors(s, a.msgs).filter(function (x) { return x.length > 3; });
-      P3.otp = {}; NA.busy = '';
-      return fail((e2[0] || t('The Official Site Did Not Confirm The Submission.')) + ' ' + t('Nothing Was Saved. Check The Details.'));
+    if (res.kind === 'wait') res = { kind: s ? 'unclear' : 'unclear', msg: '' };
+    var page = pageExcerpt(s);
+    diag('result', 'after submit', res.kind === 'ok', 'result=' + res.kind + ' | application number captured: ' + (appNo ? 'yes, length ' + appNo.length : 'no') + (res.msg ? ' | site message: ' + P.redactDigits(res.msg) : '') + ' | page: ' + (s ? String(s.title || '') + ' | ' + page : '(not readable)'));
+    if (res.kind === 'error') {                                                       // the site said no: nothing was submitted, the person may fix it and tap again
+      NA.sub = null; P3.otp = {}; NA.busy = '';
+      var friendly = /terms/i.test(res.msg) ? t('Please Tick The Declaration') + ' (' + res.msg + ')' : res.msg;
+      return fail(t('The Official Site Said') + ': ' + friendly + ' ' + t('Nothing Was Saved. Check The Details.'));
     }
-    NA.appNo = appNo; diag('page', 'application number', true, appNo);
-    P3.otp = {}; await saveNewApp(); NAUI.toDocs();
+    NA.sub = { kind: res.kind, at: Date.now(), appNo: appNo, text: page, msg: P.redactDigits(res.msg || ''), date: dateIN() };
+    if (appNo) {
+      NA.appNo = appNo; P3.otp = {}; await saveNewApp();
+    }
+    P3.otp = {}; NA.busy = ''; setStep('submitted');
+  }
+  function dateIN() { var d = new Date(); return ('0' + d.getDate()).slice(-2) + '-' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()] + '-' + d.getFullYear(); }
+  NAUI.submit = async function () {
+    readInputs(); var P3 = NA.p3;
+    if (NA.sub || NA.submitting) return;
+    if (!P3.agree) return fail(t('Please Tick The Declaration'));
+    if (!P3.place.trim()) return fail(t('Please Enter The Place'));
+    if (P3.otpFields.some(function (f) { return !String(P3.otp[f.i] || '').trim(); })) return fail(t('Please Enter The OTP'));
+    if (!(await H.confirmBox(t('Submit To MSEDCL?'), t('This Sends The Application To MSEDCL. It Cannot Be Taken Back From The App.') + '<br><br><b>' + esc(fullName()) + '</b>', t('Submit')))) return;
+    NA.submitting = true;
+    try { await doSubmit(); } catch (e) { if (NA.sub && NA.sub.kind === 'sent') { NA.sub = { kind: 'unclear', at: Date.now(), appNo: '', text: '', msg: '' }; NA.busy = ''; setStep('submitted'); } else fail(e.message || String(e)); }
+    finally { NA.submitting = false; }
+  };
+  /* ---- the result screen (1.1.4): the only screen after Submit; Submit can not be tapped from here ---- */
+  NAUI.views.submitted = function () {
+    var S2 = NA.sub || { kind: 'unclear' }, ok = S2.kind === 'ok', body = stepsBar();
+    if (ok) {
+      body += '<div class="card glow" style="border-color:rgba(70,170,110,.6);text-align:center"><div class="acc" style="font-size:15px;font-weight:700">' + ic('check', 18) + ' ' + t('Application Submitted') + '</div>' +
+        '<div class="tiny muted" style="margin-top:6px">' + t('Application Number') + '</div><div class="mono" id="sub-no" style="font-size:30px;font-weight:800;letter-spacing:1px;margin:4px 0">' + esc(S2.appNo) + '</div>' +
+        '<div class="tiny muted">' + esc(S2.date || '') + '</div>' +
+        '<div class="row" style="justify-content:center;margin-top:10px;gap:8px"><button class="btn out sm" onclick="NAUI.copyNo()">' + ic('copy', 15) + t('Copy') + '</button><button class="btn out sm" onclick="NAUI.official()">' + ic('ext', 15) + t('Open Official Page') + '</button></div></div>' +
+        '<div class="warn" style="border-color:rgba(200,150,40,.6)">' + ic('alert', 16) + '<div><b>' + t('Do Not Submit Again') + '</b><div class="small">' + t('This Application Is Already Sent To MSEDCL. Submitting Again Can Create A Duplicate.') + '</div></div></div>';
+      if (S2.msg) body += '<div class="card small"><div class="tiny muted">' + t('The Official Site Said') + '</div>' + esc(S2.msg) + '</div>';
+      body += '<div class="card small">' + t('Next: Upload The Documents, Then Pay The Fee On The Official Page Or Here.') + '</div>' +
+        '<button class="btn pri" onclick="NAUI.toDocs()">' + t('Continue To Documents And Payment') + ' ' + ic('right', 17) + '</button>';
+    } else {
+      var probably = S2.kind === 'probably';
+      body += '<div class="warn" style="border-color:rgba(200,150,40,.7)">' + ic('alert', 18) + '<div><b>' + (probably ? t('Probably Submitted - Check Your SMS') : t('Result Unclear - Check Your SMS / Official Site Before Submitting Again')) + '</b>' +
+        '<div class="small" style="margin-top:6px">' + (probably ? t('The Official Page Changed After Submit, So The Form Was Most Likely Sent, But It Did Not Show An Application Number.') : t('The Official Site Gave No Clear Answer After Submit.')) + ' ' + t('MSEDCL Sends An SMS With The Application Number When It Is Received.') + '</div>' +
+        '<div class="small" style="margin-top:6px"><b>' + t('Do Not Submit Again') + '</b></div></div></div>';
+      if (S2.msg || S2.text) body += '<div class="card tiny" style="user-select:text"><div class="muted">' + t('What The Official Page Showed (Numbers Shortened)') + '</div>' + esc(S2.msg ? S2.msg + ' \u2022 ' : '') + esc(S2.text || '') + '</div>';
+      body += '<div class="card"><div class="small">' + t('Got The SMS? Type The Application Number From It To Continue.') + '</div>' + fld(t('Application Number (8 Digits)'), 'sub.no', { mono: 1, inputmode: 'numeric', max: 8 }) +
+        '<button class="btn pri" onclick="NAUI.subManual()">' + t('Continue With This Number') + ' ' + ic('right', 17) + '</button></div>' +
+        '<div class="btns2"><button class="btn out" onclick="NAUI.official()">' + ic('ext', 16) + t('Open Official Page') + '</button><button class="btn out" onclick="NAUI.copyReport()">' + ic('copy', 16) + t('Copy Report') + '</button></div>' +
+        '<div style="text-align:center"><button class="btn ghost sm" onclick="NAUI.subUnlock()">' + t('I Did Not Get An SMS - Let Me Try Again') + '</button></div>';
+    }
+    return { body: body + fallbackLink(), title: ok ? t('Application Submitted') : t('Check Submission') };
+  };
+  NAUI.copyNo = function () { var n = NA && NA.sub && NA.sub.appNo; if (!n) return; Native.call('copy', { text: n }).then(function () { toast(t('Copied')); }).catch(function () {}); };
+  NAUI.subManual = async function () {
+    readInputs(); var n = String((NA.sub && NA.sub.no) || '').replace(/\D/g, '');
+    if (!/^\d{8}$/.test(n)) return fail(t('Enter The 8 Digit Application Number From The SMS'));
+    NA.appNo = n; NA.sub.appNo = n; NA.sub.kind = 'ok'; NA.sub.no = ''; diag('page', 'application number typed from the SMS', true, 'length 8');
+    await saveNewApp(); setStep('submitted');
+  };
+  NAUI.subUnlock = async function () {         // only after an explicit extra confirmation: the person says no SMS came, so nothing was received
+    if (!(await H.confirmBox(t('Try Submitting Again?'), t('Only Do This If You Did NOT Get An SMS From MSEDCL. If The First Submit Worked, A Second One Can Create A Duplicate Application.'), t('Yes, Try Again')))) return;
+    diag('page', 'person unlocked Submit after an unclear result', true, '');
+    NA.sub = null; NA.p3.sent = false; NA.p3.otp = {}; NA.p3.agree = false; NAUI.toConfirm();
   };
   async function saveNewApp() {
     var a = { id: NA.appNo, newName: fullName().toUpperCase(), oldName: (NA.old.filter(function (r) { return /consumer name/i.test(r[0]); })[0] || ['', ''])[1], consumerNo: NA.sel, mobile: NA.custMobile || NA.f.mobile,
@@ -1064,7 +1176,7 @@
     add(t('Email'), F.email); add(t('Mobile'), F.mobile); add(t('Place'), NA.p3.place); add(t('Application Number'), NA.appNo); add(t('Consumer No'), NA.sel);
     diag('fallback', 'open official page', true, 'step ' + NA.step);
     await Drv.show(t('Official Page'), copy);
-    if (NA.step === 'wait' || NA.step === 'pay' || NA.step === 'receipt') return;
+    if (NA.step === 'wait' || NA.step === 'pay' || NA.step === 'receipt' || NA.step === 'submitted') return;
     return NAUI.routeByPage([]);
   };
 
@@ -1088,7 +1200,7 @@
     return page(hdrBack(t('Diagnostics'), ''), body, false);
   };
   NAUI.copyReport = function () {
-    var s = NA.dsnap, rep = 'VidyutSewa 1.1.2 diagnostics\nstep: ' + NA.step + '\n' + (function () { var ad = NA.diag.filter(function (d) { return d.kind === 'aadhaar' || d.step === 'aadhaar'; }).slice(-12); return ad.length ? 'AADHAAR STEP (lengths and element names only)\n' + ad.map(function (d) { return (d.ok ? 'OK ' : 'FAIL ') + d.kind + ' ' + d.what + ' ' + d.detail; }).join('\n') + '\n' : ''; })() + (s ? 'page: ' + s.title + ' ' + (s.url || '').replace(/[?#].*$/, '') + '\nfields: ' + s.fields.map(function (f) { return (f.label || f.id || f.name) + '<' + f.type + '>'; }).join('; ') + '\nbuttons: ' + s.buttons.map(function (b) { return b.t; }).join('; ') + '\n' : '') +
+    var s = NA.dsnap, rep = 'VidyutSewa ' + (window.VS_RELEASE ? VS_RELEASE.version : '') + ' diagnostics\nstep: ' + NA.step + '\n' + (function () { var ad = NA.diag.filter(function (d) { return d.kind === 'aadhaar' || d.step === 'aadhaar'; }).slice(-12); return ad.length ? 'AADHAAR STEP (lengths and element names only)\n' + ad.map(function (d) { return (d.ok ? 'OK ' : 'FAIL ') + d.kind + ' ' + d.what + ' ' + d.detail; }).join('\n') + '\n' : ''; })() + (s ? 'page: ' + s.title + ' ' + (s.url || '').replace(/[?#].*$/, '') + '\nfields: ' + s.fields.map(function (f) { return (f.label || f.id || f.name) + '<' + f.type + '>'; }).join('; ') + '\nbuttons: ' + s.buttons.map(function (b) { return b.t; }).join('; ') + '\n' : '') +
       NA.diag.slice(-60).map(function (d) { return (d.ok ? 'OK ' : 'FAIL ') + d.step + ' ' + d.kind + ' ' + d.what + ' ' + d.detail; }).join('\n');
     Native.call('copy', { text: rep }).then(function () { toast(t('Copied')); }).catch(function () {});
   };
@@ -1098,8 +1210,13 @@
     if (!NA) return oldBack();
     if (NA.busy) { toast(t('Please Wait')); return true; }
     var s = NA.step, prev = { form: 'accounts', aadhaar: 'form', confirm: 'aadhaar', generic: NA.back || 'accounts', login: 'start', accounts: null };
+    if (NA.sub && (s === 'confirm' || s === 'aadhaar' || s === 'form')) { setStep('submitted'); return true; }    // after Submit there is no way back to the form
     if (prev[s]) { setStep(prev[s]); return true; }
     var submitted = !!NA.appNo;
+    if (NA.sub && !submitted) {
+      H.confirmBox(t('Leave This Screen?'), t('The Application May Already Be Submitted. Check Your SMS Or The Official Site Before You Start Another One.'), t('Leave')).then(function (ok) { if (!ok) return; clearTimeout(pollT); clearInterval(tickT); Drv.reset(); NA = null; oldBack(); });
+      return true;
+    }
     if (s === 'start') { NA = null; return oldBack(); }
     H.confirmBox(submitted ? t('Leave This Screen?') : t('Leave New Application?'), submitted ? t('Your Application Is Saved. You Can Continue From Its Details Page.') : t('Nothing Has Been Submitted To MSEDCL Yet.'), t('Leave')).then(function (ok) {
       if (!ok) return;

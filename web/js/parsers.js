@@ -312,6 +312,36 @@
     if (bad.length) return { ok: false, error: bad.join(' ').slice(0, 300), text: uniq.join(' ').slice(0, 300) };
     return { ok: uniq.length > 0, error: '', text: uniq.join(' ').slice(0, 300) };
   }
+
+  /* ---------- v1.1.4: final Submit result, name mismatch, login OTP destination ---------- */
+  var SUB_ERR = /invalid|incorrect|wrong|expired|mismatch|not\s+(?:match|valid|allowed|eligible)|please\s+(?:enter|check|select|accept|tick|upload|correct|try|re-?enter)|mandatory|required|should\s+not|can\s*not|cannot|failed|failure|unable|error|exceed|arrears|blank|special\s+characters/i;
+  var SUB_OK = /(?:received|registered|submitted|lodged)\s+successfully|successfully\s+(?:received|registered|submitted|lodged)|application\b[^.]{0,70}\bis\s+(?:received|submitted|registered|lodged)\b|acknowledg(?:e)?ment/i;
+  function uniqStr(list) { var seen = {}, out = []; (list || []).forEach(function (x) { x = oneSpace(x && x.t != null ? x.t : x); if (x && !seen[x]) { seen[x] = 1; out.push(x); } }); return out; }
+  // o: {appNo, text (page text), msgs[] (site alerts), alive (the marker of the page we clicked on is still there), settledMs (how long the replaced page has been stable), elapsed}
+  // -> {kind: 'ok' | 'error' | 'probably' | 'unclear' | 'wait', msg}
+  function classifySubmit(o) {
+    var msgs = uniqStr(o.msgs), text = clean(o.text || ''), el = o.elapsed || 0;
+    if (o.appNo) return { kind: 'ok', msg: msgs[0] || '' };
+    var err = msgs.filter(function (x) { return SUB_ERR.test(x); }), good = msgs.filter(function (x) { return SUB_OK.test(x); });
+    if (good.length && !err.length) return { kind: 'ok', msg: good[0] };
+    if (err.length) return { kind: 'error', msg: err[0] };
+    if (!o.alive) {   // the page we clicked on is gone: the form was posted
+      if (SUB_OK.test(text)) return { kind: 'ok', msg: (text.match(SUB_OK) || [''])[0] };
+      return (o.settledMs || 0) >= 6000 ? { kind: 'probably', msg: msgs[0] || '' } : { kind: 'wait', msg: '' };
+    }
+    return el > 45000 ? { kind: 'unclear', msg: msgs[0] || '' } : { kind: 'wait', msg: '' };
+  }
+  // text kept in Diagnostics after Submit: digit runs shortened (OTPs, mobiles, application numbers never printed)
+  function redactDigits(text) { return String(text == null ? '' : text).replace(/\d{4,}/g, function (m) { return '[' + m.length + ' digits]'; }); }
+  var NAME_MISMATCH = /name\s+(?:does\s+)?not\s+match(?:ed)?|not\s+match(?:ed)?\s+with\s+aadh?a?r\s+registered\s+name/i;
+  function aadhaarNameMismatch(msgs) { return uniqStr(Array.isArray(msgs) ? msgs : [msgs]).some(function (x) { return NAME_MISMATCH.test(x); }); }
+  // "OTP has been successfully sent to following contact details. <details> Please enter the OTP ..." -> the details part, as the page words it
+  function loginOtpTo(text) {
+    var s = clean(text), m = s.match(/(?:sent\s+to|sent\s+on)\s+(?:the\s+)?following\s+contact\s+details\.?:?\s*(.{3,200}?)(?=\s*(?:please\s+enter|enter\s+otp|otp\s*:|login\b|$))/i);
+    if (m && m[1] && !/^(please|enter)/i.test(m[1])) return m[1].trim();
+    var mob = s.match(/(?:mobile(?:\s*(?:number|no\.?))?)\s*:?\s*([X*x\d]{4,})/i), em = s.match(/(?:e-?mail(?:\s*id)?)\s*:?\s*([\w.*x-]+@[\w.*-]+)/i);
+    return [mob ? 'Mobile: ' + mob[1] : '', em ? 'Email: ' + em[1] : ''].filter(Boolean).join(' / ');
+  }
   /* ---------- v1.1.2: consumer list search (name + number from one box) ---------- */
   function normQ(s) { return String(s == null ? '' : s).toLowerCase().replace(/\s+/g, ' ').trim(); }
   function filterConsumers(list, q) {
@@ -423,6 +453,7 @@
     parseMsedclDate: parseMsedclDate, versionNewer: versionNewer,
     NAME_MAX: NAME_MAX, isMS: isMS, upName: upName, verhoeffValid: verhoeffValid, validAadhaar: validAadhaar, aadhaarWaived: aadhaarWaived, aadhaarReply: aadhaarReply, filterConsumers: filterConsumers, composeName: composeName, nameLength: nameLength, clampName: clampName, validEmail: validEmail, validMobile: validMobile,
     parseAppNo: parseAppNo, feeFromText: feeFromText, receiptStatus: receiptStatus, aadhaarMobileText: aadhaarMobileText, receiptName: receiptName,
-    cleanErrors: cleanErrors, otpBoxes: otpBoxes, classifyLoginPage: classifyLoginPage
+    cleanErrors: cleanErrors, otpBoxes: otpBoxes, classifyLoginPage: classifyLoginPage,
+    classifySubmit: classifySubmit, redactDigits: redactDigits, aadhaarNameMismatch: aadhaarNameMismatch, loginOtpTo: loginOtpTo
   };
 });

@@ -3,11 +3,25 @@
    CHANGELOG.md and the GitHub release notes are generated from it: node tools/gen-changelog.js */
 (function () {
   window.VS_RELEASE = {
-    version: '1.1.3',
+    version: '1.1.4',
     graceDays: 15, // used only if the update manifest has no valid graceDays
     manifestUrl: 'https://raw.githubusercontent.com/FilmyFather/vidyutsewa/main/update/latest.json'
   };
   window.VS_CHANGELOG = [
+  {
+    "v": "1.1.4",
+    "date": "2026-11-07",
+    "items": [
+      "Submit Fix: The App Now Knows When The Official Site Accepted The Application And Shows An Application Submitted Screen",
+      "Application Number Is Shown Big, With Copy And Open Official Page Buttons",
+      "Submit Can Not Be Tapped Twice: After The First Submit The Button Is Locked To Avoid A Duplicate Application",
+      "Result Unclear Screen: If The Site Shows No Number, The App Says Check Your SMS Instead Of Showing The Old Form Again",
+      "Before Submit The App Checks The Official Page: Declaration Ticked, Place And OTP Filled",
+      "New I Agree To The Terms And Conditions Box On The Last Screen",
+      "Name Does Not Match Aadhaar Now Shows A Clear Message And Takes You Back To Edit The Name",
+      "Login OTP Screen Shows Which Mobile Or Email The OTP Was Sent To"
+    ]
+  },
   {
     "v": "1.1.3",
     "date": "2026-11-06",

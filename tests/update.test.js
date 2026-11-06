@@ -14,24 +14,24 @@ const J = (x) => JSON.parse(JSON.stringify(x));
 const D = (s) => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));
 const M = (o) => J(U.parseManifest(JSON.stringify(Object.assign({ latestVersion: '1.1.3', releasedAt: '2026-11-06', graceDays: 15, changelog: ['A'] }, o))));
 
-t('versions: every place agrees on 1.1.3', () => {
-  assert.strictEqual(R.version, '1.1.3');
-  assert.strictEqual(CL[0].v, '1.1.3');
-  assert.strictEqual(JSON.parse(read('desktop/package.json')).version, '1.1.3');
-  assert.ok(/var VERSION = '1\.1\.3';/.test(read('web/js/app.js')));
-  assert.ok(/versionName = "1\.1\.3"/.test(read('android/app/build.gradle.kts')) && /versionCode = 6/.test(read('android/app/build.gradle.kts')));
-  assert.ok(read('android/app/src/main/java/com/filmyfather/vidyutsewa/MainActivity.kt').includes('put("version", "1.1.3")'));
-  assert.strictEqual(JSON.parse(read('update/latest.json')).latestVersion, '1.1.3');
+t('versions: every place agrees on 1.1.4', () => {
+  assert.strictEqual(R.version, '1.1.4');
+  assert.strictEqual(CL[0].v, '1.1.4');
+  assert.strictEqual(JSON.parse(read('desktop/package.json')).version, '1.1.4');
+  assert.ok(/var VERSION = '1\.1\.4';/.test(read('web/js/app.js')));
+  assert.ok(/versionName = "1\.1\.4"/.test(read('android/app/build.gradle.kts')) && /versionCode = 7/.test(read('android/app/build.gradle.kts')));
+  assert.ok(read('android/app/src/main/java/com/filmyfather/vidyutsewa/MainActivity.kt').includes('put("version", "1.1.4")'));
+  assert.ok(['1.1.3', '1.1.4'].includes(JSON.parse(read('update/latest.json')).latestVersion));   // 1.1.4 only after the release files are up
 });
-t('changelog: newest first, all versions 1.0.0..1.1.3, no duplicates', () => {
-  assert.deepStrictEqual(CL.map((e) => e.v), ['1.1.3', '1.1.2', '1.1.1', '1.1.0', '1.0.1', '1.0.0']);
+t('changelog: newest first, all versions 1.0.0..1.1.4, no duplicates', () => {
+  assert.deepStrictEqual(CL.map((e) => e.v), ['1.1.4', '1.1.3', '1.1.2', '1.1.1', '1.1.0', '1.0.1', '1.0.0']);
   for (let i = 1; i < CL.length; i++) assert.ok(U.cmp(CL[i - 1].v, CL[i].v) > 0 && CL[i - 1].date >= CL[i].date);
   CL.forEach((e) => { assert.ok(e.items.length >= 3); assert.ok(U.parseDate(e.date) !== null); });
 });
 t('changelog: every line is Title Case English and has Hindi + Marathi', () => {
   const small = new Set(['a', 'an', 'and', 'at', 'for', 'in', 'is', 'of', 'on', 'or', 'the', 'to', 'by', 'with', 'out', 'up', 'from', 'than', 'if', 'it', 'be', 'are', 'after', 'until', 'unless', 'while', 'into', 'as']);
-  const src = read('web/js/i18n-113.js'), hi = {}, mr = {};
-  const grab = (lang, into) => { const m = new RegExp("I18N\\.extend\\('" + lang + "', (\\{[\\s\\S]*?\\n\\})\\);").exec(src); Object.assign(into, JSON.parse(m[1])); };
+  const src = read('web/js/i18n-113.js') + '\n' + read('web/js/i18n-114.js'), hi = {}, mr = {};
+  const grab = (lang, into) => { const re = new RegExp("I18N\\.extend\\('" + lang + "', (\\{[\\s\\S]*?\\n\\})\\);", 'g'); let m; while ((m = re.exec(src))) Object.assign(into, JSON.parse(m[1])); };
   grab('hi', hi); grab('mr', mr);
   CL.forEach((e) => e.items.forEach((line) => {
     line.split(/[\s]+/).forEach((w) => {
@@ -44,7 +44,7 @@ t('changelog: every line is Title Case English and has Hindi + Marathi', () => {
 });
 t('changelog.md / manifest lines come from the same source', () => {
   const md = read('CHANGELOG.md'); CL.forEach((e) => e.items.forEach((i) => assert.ok(md.includes(i))));
-  assert.deepStrictEqual(JSON.parse(read('update/latest.json')).changelog, CL[0].items);
+  { const lj = JSON.parse(read('update/latest.json')); assert.deepStrictEqual(lj.changelog, CL.find((e) => e.v === lj.latestVersion).items); }
 });
 t('versions compare numerically (1.10.0 > 1.9.0), junk gives null', () => {
   assert.strictEqual(U.cmp('1.10.0', '1.9.0'), 1); assert.strictEqual(U.cmp('1.1.3', '1.1.3'), 0); assert.strictEqual(U.cmp('v1.1.3', '1.1.4'), -1);

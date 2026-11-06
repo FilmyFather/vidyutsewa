@@ -12,13 +12,13 @@ Get the latest files from **[Releases](https://github.com/FilmyFather/vidyutsewa
 
 | File | For |
 |---|---|
-| `VidyutSewa-By-Yuvraj-1.1.3.apk` | Android 5.0 and newer (signed with v1 + v2 + v3 schemes) |
-| `VidyutSewa-By-Yuvraj-Setup-1.1.3.exe` | Windows 10 / 11 (64-bit) **installer**: installs for the current user (no admin), adds Desktop + Start Menu shortcuts, has an uninstaller, updates older installs in place |
-| `VidyutSewa-By-Yuvraj-1.1.3-Windows-Portable.exe` | Windows 10 / 11 (64-bit), no install needed |
+| `VidyutSewa-By-Yuvraj-1.1.4.apk` | Android 5.0 and newer (signed with v1 + v2 + v3 schemes) |
+| `VidyutSewa-By-Yuvraj-Setup-1.1.4.exe` | Windows 10 / 11 (64-bit) **installer**: installs for the current user (no admin), adds Desktop + Start Menu shortcuts, has an uninstaller, updates older installs in place |
+| `VidyutSewa-By-Yuvraj-1.1.4-Windows-Portable.exe` | Windows 10 / 11 (64-bit), no install needed |
 
 **Android:** open the APK, allow "Install Unknown Apps" for your browser / WhatsApp / file manager when asked, then tap Install. Allow notifications so status alerts can arrive.
 
-**Windows (installer):** run `VidyutSewa-By-Yuvraj-Setup-1.1.3.exe`. It installs by itself (no admin password), puts a **VidyutSewa By Yuvraj** shortcut on the Desktop and in the Start Menu, and opens the app. Remove it from Settings > Apps (your saved data stays). Running Setup again over an older version updates it in place.
+**Windows (installer):** run `VidyutSewa-By-Yuvraj-Setup-1.1.4.exe`. It installs by itself (no admin password), puts a **VidyutSewa By Yuvraj** shortcut on the Desktop and in the Start Menu, and opens the app. Remove it from Settings > Apps (your saved data stays). Running Setup again over an older version updates it in place.
 
 **Windows (portable):** double-click the portable EXE. Windows SmartScreen may say "Windows protected your PC" because the file is not code-signed: click **More info → Run anyway**. Closing the window keeps it running in the tray so background status checks continue; right-click the tray icon → Quit to exit.
 
@@ -34,6 +34,15 @@ Get the latest files from **[Releases](https://github.com/FilmyFather/vidyutsewa
 - **Bill**: 12-digit consumer number → bill card (name, consumer no, billing unit, units, bill month, bill date, amount, due date, after-due amount, prompt payment discount) → **original MSEDCL bill PDF** download / share on WhatsApp, previous months, recent numbers.
 - **Documents**: vault per Application ID.
 - **Settings** (gear, top right): 4 themes (Royal Electric (default), Emerald Luxe, Sunset Power, Purple Aurora) × Dark / Light / System, English / हिंदी / मराठी, mode, notifications, auto re-upload, auto-delete, optional App Lock (PIN, fingerprint on Android), Next Customer wipe, WhatsApp template (`{Name}` `{ID}` `{Shop Name}`), backup & restore (one file with all data + PDFs), storage, update check against GitHub Releases.
+
+## What's new in 1.1.4 - submit result, name mismatch, login OTP text
+
+- **Application Submitted screen.** After you tap Submit the app now watches what the official site does. If the site accepted the application (it shows the "application ... is received" text, an acknowledgement page, or simply a new page), the app shows a big green **Application Submitted** screen with the application number, a Copy button and **Open Official Page** for the next steps. **Submit can not be tapped again** from the app: a second submit could create a duplicate application.
+- **Result Unclear / Probably Submitted.** If the official site gives no clear answer, the app says to check your SMS or the official site and needs an extra confirmation before it lets you submit again.
+- **Why:** with 1.1.2 the first Submit worked, but the app only looked for a message or an application number, did not find one, and showed the old confirm screen again; the next taps hit the reloaded page and the site said "Please check Terms And Conditions". The application number is never stored by Diagnostics (only "captured yes, length 8").
+- **Name Does Not Match Aadhaar:** a clear message, the site's exact words, and an **Edit The Name** button back to the name fields (everything else stays); after the edit generate a fresh OTP and verify again. Only a verified Aadhaar unlocks Submit.
+- The declaration is ticked with a real click and checked on the official page before Submit; there is also an **I Agree To The Terms And Conditions (As On The Official Site)** box on the last screen.
+- The login OTP screen shows where the OTP was sent, taken from the official page.
 
 ## What's new in 1.1.3 - Windows installer, What's New, update check
 

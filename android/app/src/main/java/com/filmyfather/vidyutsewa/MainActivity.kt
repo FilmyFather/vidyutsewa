@@ -197,7 +197,7 @@ class MainActivity : Activity() {
         "saveDownload" -> saveDownload(a.getString("name"), Base64.decode(a.getString("b64"), Base64.DEFAULT), a.optString("mime", "application/octet-stream"))
         "storageInfo" -> JSONObject().put("docs", Store.dirSize(File(filesDir, "vault"))).put("cache", Store.dirSize(cacheDir))
         "clearCache" -> { cacheDir.listFiles()?.forEach { it.deleteRecursively() }; runOnUiThread { web.clearCache(true) }; true }
-        "appInfo" -> JSONObject().put("version", "1.1.3").put("platform", "android")
+        "appInfo" -> JSONObject().put("version", "1.1.4").put("platform", "android")
         "drvSeq" -> JSONObject().put("seq", driver.finishSeq).put("start", driver.startSeq)
         "drvWaitNav" -> {
             val seq = a.optInt("seq"); val start = a.optInt("start"); val ms = a.optLong("ms", 8000); val quick = a.optLong("quick", 1800)
