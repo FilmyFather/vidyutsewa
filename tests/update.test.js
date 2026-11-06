@@ -93,9 +93,12 @@ t('evaluate: minSupported blocks older installs at once, only when the date is v
   const m = M({ latestVersion: '1.2.0', releasedAt: '2026-11-10', graceDays: 15, minSupported: '1.1.3' });
   assert.strictEqual(U.evaluate(m, '1.1.2', D('2026-11-11')).state, 'required'); assert.strictEqual(U.evaluate(m, '1.1.3', D('2026-11-11')).state, 'optional');
 });
-t('the first manifest in the repo points at 1.1.3 itself: 1.1.3 sees nothing, even years later', () => {
-  const m = U.parseManifest(read('update/latest.json'));
-  assert.ok(m); assert.strictEqual(U.evaluate(m, '1.1.3', D('2030-06-01')).state, 'none'); assert.strictEqual(m.graceDays, 15);
+t('the manifest in the repo is valid: the latest version sees nothing, the previous one gets a popup (not a block) inside the grace days', () => {
+  const m = U.parseManifest(read('update/latest.json')); assert.ok(m); assert.strictEqual(m.graceDays, 15);
+  assert.strictEqual(U.evaluate(m, m.latestVersion, D('2030-06-01')).state, 'none');
+  const prev = CL[1].v, rel = typeof m.releasedAt === 'number' ? m.releasedAt : D(m.releasedAt);
+  assert.strictEqual(U.evaluate(m, prev, rel + 2 * 86400e3).state, 'optional');
+  assert.strictEqual(U.evaluate(m, prev, rel + 20 * 86400e3).state, 'required');
 });
 t('privacy: the update check sends no user data (static check of update.js)', () => {
   const s = read('web/js/update.js');
