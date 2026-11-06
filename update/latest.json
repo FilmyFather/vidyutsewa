@@ -1,0 +1,17 @@
+{
+  "latestVersion": "1.1.3",
+  "releasedAt": "2026-11-06",
+  "graceDays": 15,
+  "minSupported": "",
+  "apkUrl": "https://github.com/FilmyFather/vidyutsewa/releases/download/v1.1.3/VidyutSewa-By-Yuvraj-1.1.3.apk",
+  "installerUrl": "https://github.com/FilmyFather/vidyutsewa/releases/download/v1.1.3/VidyutSewa-By-Yuvraj-Setup-1.1.3.exe",
+  "releaseUrl": "https://github.com/FilmyFather/vidyutsewa/releases/tag/v1.1.3",
+  "changelog": [
+    "Windows Setup Installer: Installs Like A Normal App, With Desktop And Start Menu Shortcuts",
+    "What's New Screen With The Full Version History (Settings, About)",
+    "What's New Opens By Itself Once After Every Update",
+    "New Version Available Pop-Up With Update Now And Later Buttons",
+    "A Version Stops Working 15 Days After A New Update Is Released, Until You Update",
+    "The Update Check Sends Nothing About You And Never Blocks If You Are Offline"
+  ]
+}

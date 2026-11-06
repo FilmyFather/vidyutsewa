@@ -8,7 +8,7 @@
   var REPO_API = 'https://api.github.com/repos/FilmyFather/vidyutsewa/releases/latest';
   var LOGIN_URL = 'https://wss.mahadiscom.in/wss/wss?uiActionName=getCustAccountLogin';
   var BILL_SITE = 'https://wss.mahadiscom.in/wss/wss?uiActionName=getViewPayBill';
-  var VERSION = '1.1.2';
+  var VERSION = '1.1.3';
   var DISCLAIMER = 'Independent Helper App. Not Affiliated With Or Endorsed By MSEDCL. All Applications Are Submitted And Paid On The Official MSEDCL Website.';
   var THEMES = [
     ['royal', 'Royal Electric', ['#0B1744', '#22D3EE', '#3B82F6']],
@@ -777,7 +777,7 @@
       '<div class="sethead">' + icon('info', 15) + t('About') + '</div><div class="card"><div class="row"><div class="appic"></div><div><b>VidyutSewa By Yuvraj</b><div class="tiny muted">' + t('Version') + ' ' + VERSION + ' \u2022 ' + t('Electricity Name Change & Tracker') + '</div></div></div>' +
       '<div class="tiny muted" style="margin-top:8px;line-height:1.5">' + t(DISCLAIMER) + '</div>' +
       '<div class="tiny muted" style="margin-top:6px;line-height:1.5">' + t('Privacy: No Server, No Analytics, No Data Collection. Everything Stays On This Device.') + '</div>' +
-      '<div class="btns2" style="margin-top:8px"><button class="btn ghost sm" id="updbtn" onclick="UI.checkUpdate()">' + icon('refresh', 15) + t('Check For Updates') + '</button><button class="btn ghost sm" onclick="UI.ext(\'' + REPO + '\')">' + icon('ext', 15) + 'GitHub</button></div></div>';
+      '<div class="btns2" style="margin-top:8px"><button class="btn ghost sm" id="updbtn" onclick="UI.checkUpdate()">' + icon('refresh', 15) + t('Check For Updates') + '</button><button class="btn ghost sm" onclick="UI.go(\'whatsnew\')">' + icon('info', 15) + t("What's New") + '</button><button class="btn ghost sm" onclick="UI.ext(\'' + REPO + '\')">' + icon('ext', 15) + 'GitHub</button></div></div>';
     setTimeout(UI.loadStorage, 30);
     return page(hdrBack(t('Settings')), body, false);
   };
@@ -798,12 +798,14 @@
       if (UI.locked && s.bio && Native.platform === 'android') UI.bio();
     }, 1600);
     VS.schedule();
+    if (window.VSUpdate) setTimeout(function () { VSUpdate.onLaunch(); }, 2000);
     VS.onChange(function () { UI.unread = S().activity.filter(function (a) { return a.t > (S().lastSeen || 0); }).length; });
     if (Native.platform !== 'android' && s.onboarded) setTimeout(function () { if (S().apps.some(function (a) { return a.status !== 'approved'; }) && Date.now() - (S().lastSync || 0) > 10 * 60000) VS.syncAll().then(function () { render(true); }); }, 4000);
   }
   Native.on('back', function () { UI.back(); });
   Native.on('dataChanged', async function () { await VS.load(); if (!document.querySelector('.sheetwrap') && ['home', 'apps', 'detail', 'docs', 'notifs'].indexOf(UI.route) >= 0) render(true); });
   Native.on('resume', function () {
+    if (window.VSUpdate && !UI.updateBlocked) VSUpdate.onForeground();
     var s = S().settings; if (s.lock && s.pinHash && UI.lockOnResume) { UI.locked = true; render(); }
     VS.load().then(function () { if (!UI.locked && ['home', 'apps', 'detail'].indexOf(UI.route) >= 0) render(true); });
   });

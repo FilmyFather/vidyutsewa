@@ -37,6 +37,7 @@ async def main():
             inflight['n']-=1
             await route.fulfill(status=200, body=body, headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'*','Content-Type':'application/json'})
         await ctxa.route('https://mobileapp.mahadiscom.in/**', bill_route)
+        await ctxa.route('https://raw.githubusercontent.com/**', lambda r: asyncio.ensure_future(r.fulfill(status=200, body=open(W+'/update/latest.json').read(), headers={'Access-Control-Allow-Origin':'*','Content-Type':'application/json'})))
         state['inflight']=inflight
         pa.on('pageerror', lambda e: errors.append('pageerror: '+str(e)))
         pa.on('console', lambda m: errors.append('console: '+m.text) if m.type=='error' else None)

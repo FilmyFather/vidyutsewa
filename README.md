@@ -12,12 +12,15 @@ Get the latest files from **[Releases](https://github.com/FilmyFather/vidyutsewa
 
 | File | For |
 |---|---|
-| `VidyutSewa-By-Yuvraj-1.1.2.apk` | Android 5.0 and newer (signed with v1 + v2 + v3 schemes) |
-| `VidyutSewa-By-Yuvraj-1.1.2-Windows-Portable.exe` | Windows 10 / 11 (64-bit), no install needed |
+| `VidyutSewa-By-Yuvraj-1.1.3.apk` | Android 5.0 and newer (signed with v1 + v2 + v3 schemes) |
+| `VidyutSewa-By-Yuvraj-Setup-1.1.3.exe` | Windows 10 / 11 (64-bit) **installer**: installs for the current user (no admin), adds Desktop + Start Menu shortcuts, has an uninstaller, updates older installs in place |
+| `VidyutSewa-By-Yuvraj-1.1.3-Windows-Portable.exe` | Windows 10 / 11 (64-bit), no install needed |
 
 **Android:** open the APK, allow "Install Unknown Apps" for your browser / WhatsApp / file manager when asked, then tap Install. Allow notifications so status alerts can arrive.
 
-**Windows:** double-click the EXE. Windows SmartScreen may say "Windows protected your PC" because the file is not code-signed: click **More info → Run anyway**. Closing the window keeps it running in the tray so background status checks continue; right-click the tray icon → Quit to exit.
+**Windows (installer):** run `VidyutSewa-By-Yuvraj-Setup-1.1.3.exe`. It installs by itself (no admin password), puts a **VidyutSewa By Yuvraj** shortcut on the Desktop and in the Start Menu, and opens the app. Remove it from Settings > Apps (your saved data stays). Running Setup again over an older version updates it in place.
+
+**Windows (portable):** double-click the portable EXE. Windows SmartScreen may say "Windows protected your PC" because the file is not code-signed: click **More info → Run anyway**. Closing the window keeps it running in the tray so background status checks continue; right-click the tray icon → Quit to exit.
 
 ## What it does
 
@@ -31,6 +34,38 @@ Get the latest files from **[Releases](https://github.com/FilmyFather/vidyutsewa
 - **Bill**: 12-digit consumer number → bill card (name, consumer no, billing unit, units, bill month, bill date, amount, due date, after-due amount, prompt payment discount) → **original MSEDCL bill PDF** download / share on WhatsApp, previous months, recent numbers.
 - **Documents**: vault per Application ID.
 - **Settings** (gear, top right): 4 themes (Royal Electric (default), Emerald Luxe, Sunset Power, Purple Aurora) × Dark / Light / System, English / हिंदी / मराठी, mode, notifications, auto re-upload, auto-delete, optional App Lock (PIN, fingerprint on Android), Next Customer wipe, WhatsApp template (`{Name}` `{ID}` `{Shop Name}`), backup & restore (one file with all data + PDFs), storage, update check against GitHub Releases.
+
+## What's new in 1.1.3 - Windows installer, What's New, update check
+
+- **Windows Setup installer** (`VidyutSewa-By-Yuvraj-Setup-1.1.3.exe`): per-user install, Desktop + Start Menu shortcuts, uninstaller, in-place upgrade. The portable EXE is still published.
+- **What's New** (Settings > About > What's New): every version, newest first. It also opens once by itself on the first launch after an update. The text lives in ONE file, `web/js/changelog.js`, used by Android and Windows; `node tools/gen-changelog.js` writes `CHANGELOG.md` from it and `node tools/gen-changelog.js notes 1.1.3` prints the release notes.
+- **Update check**: at launch (and at most once a day when the app comes back to the front) the app fetches the small public file `update/latest.json` from this repo. If a newer version exists it shows **New Version Available** (Update Now / Later). After the grace period the old version shows a full-screen **Update Required** (Update Now / Close) and does not open until updated.
+
+### How to publish the next update (Yuvi)
+
+1. Bump the version everywhere: `android/app/build.gradle.kts` (versionName + versionCode), `desktop/package.json`, `VERSION` in `web/js/app.js`, `version` in `web/js/changelog.js`, `appInfo` in `MainActivity.kt`. Add the new entry at the TOP of `VS_CHANGELOG` in `web/js/changelog.js`, run `node tools/gen-changelog.js`. (`node tests/update.test.js` fails if any of these disagree.)
+2. Build, then create the GitHub release `vX.Y.Z` with the APK, the Setup EXE and the portable EXE.
+3. **Last step, only after the release files are downloadable:** edit `update/latest.json` on `main`:
+
+```json
+{
+  "latestVersion": "1.2.0",
+  "releasedAt": "2026-12-01",
+  "graceDays": 15,
+  "minSupported": "",
+  "apkUrl": "https://github.com/FilmyFather/vidyutsewa/releases/download/v1.2.0/VidyutSewa-By-Yuvraj-1.2.0.apk",
+  "installerUrl": "https://github.com/FilmyFather/vidyutsewa/releases/download/v1.2.0/VidyutSewa-By-Yuvraj-Setup-1.2.0.exe",
+  "releaseUrl": "https://github.com/FilmyFather/vidyutsewa/releases/tag/v1.2.0",
+  "changelog": ["Short line 1", "Short line 2"]
+}
+```
+
+- `graceDays` is the number of days after `releasedAt` before older versions stop opening. **Default 15; change it to 10 here** (one field; no new app build needed). If the field is missing or invalid the app uses 15 (`graceDays` in `web/js/changelog.js`).
+- `releasedAt` is `YYYY-MM-DD`. A date in the future is ignored (nobody is blocked).
+- `minSupported` (optional): any install older than this is blocked at once. Leave it empty unless you really need it.
+- Before the grace period ends the popup says "Update Required In N Days" and **Later** works. The first manifest points at 1.1.3 itself, so nobody is forced yet.
+- Safety: if the file cannot be fetched (offline, GitHub down, 404, broken JSON, wrong dates) the app **opens normally**. The check never runs in the middle of filling a form.
+- **Nothing is collected:** the check is one plain GET of that public file. No account, device id, consumer number, name, Aadhaar or OTP is sent or stored; only the time of the last check is kept on the device.
 
 ## What's new in 1.1.2 - Aadhaar fix, M/S single-line name, consumer search
 
@@ -103,11 +138,12 @@ tools/      Headless UI smoke test
 ```bash
 # tests
 node tests/parsers.test.js
+node tests/update.test.js
 
 # Android (JDK 17 + Android SDK 35). Signing: android/keystore.properties (not in git)
 cd android && ./gradlew assembleRelease testReleaseUnitTest
 
-# Windows portable EXE (Node 20+; on Linux needs wine for the icon step)
+# Windows Setup EXE + portable EXE (Node 20+; on Linux needs wine for the icon step)
 cd desktop && npm install && npm run dist
 ```
 

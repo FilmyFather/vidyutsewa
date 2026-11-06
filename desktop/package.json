@@ -1,7 +1,7 @@
 {
   "name": "vidyutsewa-desktop",
   "productName": "VidyutSewa By Yuvraj",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "description": "VidyutSewa By Yuvraj - Electricity Name Change & Tracker (independent helper for MSEDCL consumers)",
   "author": "Yuvraj Chauhan",
   "license": "MIT",
@@ -9,7 +9,7 @@
   "scripts": {
     "start": "electron .",
     "copyweb": "node copy-web.js",
-    "dist": "node copy-web.js && electron-builder --win portable --x64"
+    "dist": "node copy-web.js && electron-builder --win nsis portable --x64"
   },
   "devDependencies": {
     "electron": "33.2.1",
@@ -36,6 +36,12 @@
     "win": {
       "target": [
         {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
           "target": "portable",
           "arch": [
             "x64"
@@ -43,12 +49,31 @@
         }
       ],
       "icon": "build/icon.ico",
-      "artifactName": "VidyutSewa-By-Yuvraj-${version}-Windows-Portable.exe"
+      "artifactName": "VidyutSewa-By-Yuvraj-${version}-Windows.${ext}"
     },
     "portable": {
       "artifactName": "VidyutSewa-By-Yuvraj-${version}-Windows-Portable.exe"
     },
     "asar": true,
-    "compression": "maximum"
+    "compression": "maximum",
+    "nsis": {
+      "artifactName": "VidyutSewa-By-Yuvraj-Setup-${version}.exe",
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": false,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "VidyutSewa By Yuvraj",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "allowToChangeInstallationDirectory": false,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "uninstallDisplayName": "VidyutSewa By Yuvraj",
+      "menuCategory": false,
+      "displayLanguageSelector": false,
+      "language": "1033"
+    }
   }
 }

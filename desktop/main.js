@@ -172,6 +172,7 @@ const handlers = {
   appInfo: () => ({ version: app.getVersion(), platform: 'windows' }),
   theme: (a) => { try { win.setBackgroundColor(a.color || '#050A24'); } catch (e) {} return true; },
   exit: () => { win.hide(); return true; },
+  quit: () => { quitting = true; app.quit(); return true; },
   biometric: () => ({ ok: false }),
   schedule: () => true
 };

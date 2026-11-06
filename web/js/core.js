@@ -12,7 +12,7 @@
       v: 1,
       settings: { mode: '', shopName: '', fee: 50, theme: 'dark', themeStyle: 'royal', lang: 'en', notify: true, interval: 30, reminder: true, sound: true,
         quality: 'balanced', autoReupload: true, autoDelete: true, lock: false, pinHash: '', bio: false, waTemplate: DEFAULT_TEMPLATE,
-        onboarded: false },
+        onboarded: false, lastSeenVersion: '' },
       apps: [], bills: [], activity: [], notes: []
     };
   }
